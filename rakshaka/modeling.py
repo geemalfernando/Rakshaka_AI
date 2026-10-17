@@ -80,7 +80,7 @@ def balance_training_groups(rows, seed=42):
     return [row for row in rows if row["group_id"] in selected_groups]
 
 
-def make_classifier():
+def make_classifier(class_weight=None):
     features = FeatureUnion(
         [
             (
@@ -109,7 +109,12 @@ def make_classifier():
     return Pipeline(
         [
             ("features", features),
-            ("classifier", LogisticRegression(max_iter=1500, random_state=42)),
+            (
+                "classifier",
+                LogisticRegression(
+                    max_iter=1500, random_state=42, class_weight=class_weight
+                ),
+            ),
         ]
     )
 
