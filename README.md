@@ -1,7 +1,7 @@
 # Rakshaka AI
 
-Rakshaka AI detects scam messages submitted in English, Sinhala, and Singlish
-(Sinhala written with Latin characters). The supplied CSVs are English-only,
+Rakshaka AI detects scam messages submitted in English, Sinhala, Singlish, Tamil, and Tanglish
+(Sinhala/Tamil written with Latin characters). The supplied CSVs are English-only,
 so this workflow preserves them and creates a balanced, human-review translation
 sample. It does not generate translations automatically.
 
@@ -18,7 +18,7 @@ sample. It does not generate translations automatically.
    removes exact text duplicates, retains original labels and source row
    references, and fails if the same message has conflicting labels.
 4. Review `data/annotation/translation_sample.csv` with native Sinhala
-   speakers. Fill the Sinhala and Singlish text independently, and set each
+   speakers. Fill the Sinhala, Singlish, Tamil and Tanglish text independently, and set each
    language's status to `verified` only after a human reviewer confirms that
    the translation preserves the message's meaning and scam/legitimate label.
    Enter the reviewer's name or identifier. The initial sample contains up to
@@ -41,12 +41,12 @@ sample. It does not generate translations automatically.
    `python scripts/serve.py`.
    `GET /health` reports service/model status. `POST /predict` accepts JSON
    such as `{"message":"...","language":"sinhala"}`; `language` can be
-   `english`, `sinhala`, `singlish`, or `unknown`. Predictions and drift events
+   `english`, `sinhala`, `singlish`, `tamil`, `tanglish`, or `unknown`. Predictions and drift events
    are written to `artifacts/predictions.jsonl`. Message contents are not
    written to prediction logs.
 
 The classifier combines character and word TF-IDF features with logistic
-regression. Character features support Sinhala script and romanized Sinhala,
+regression. Character features can represent Sinhala/Tamil scripts and romanized text,
 but performance in those languages is not established until reviewed examples
 are supplied and the model is retrained. Language metadata is caller-provided;
 the service does not pretend to distinguish English from romanized Sinhala
@@ -63,3 +63,59 @@ adding examples to training data or triggering retraining.
 ## Validation
 
 Run tests with `python -m unittest discover -s tests`.
+
+## Extended multilingual workflow
+The two original English CSVs are not redistributed. The annotation CSV generated
+by `prepare_data.py` now has Tamil and Tanglish columns as well as Sinhala
+and Singlish. Existing reviewed annotations are preserved when preparation runs
+again for the same source message groups. Older annotation CSVs without the new
+columns remain readable; only rows marked `verified` with reviewer identifiers
+are included in training. **The code does not automatically translate text.**
+Recruit fluent reviewers and document translation/generation methods, licences,
+and review decisions. Never claim accuracy in a language without sufficient
+independent, labeled held-out examples.
+
+## Drift demonstration
+After training, run:
+```bash
+python scripts/demo_drift.py
+python scripts/demo_drift.py --shifted data/drift/drift_samples.csv
+```
+The first command compares a sample of cleaned source messages with *illustrative*
+synthetic language shifts; the second uses a reviewed CSV with a `text` column.
+It reports observed OOV values and whether the chosen review threshold actually
+fired. A shift is **not** proof of a scam, nor proof of reduced accuracy.
+Review shifted records with human evaluators before using them for training.
+For the judges, show both the original prediction and drift signal / review response.
+
+## Container deployment
+After generating a local model with `scripts/train_model.py`:
+```bash
+docker build -t rakshaka-ai .
+docker run --rm -p 8000:8000 -v "$PWD/artifacts:/app/artifacts" rakshaka-ai
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
+  -d '{"message":"Sample notification","language":"english"}'
+```
+The model and private datasets are not included in the image. Do not expose this
+unauthenticated demonstration service directly to the public internet. Add network
+controls, rate limits and authentication before any public deployment.
+
+## Competition submission evidence (must complete with real results)
+- **Training data**: record dataset names, links, licence terms, row counts,
+  classes, translation provenance and review process. Never upload private data.
+- **Evaluation**: paste actual values from `artifacts/metrics.json`: overall
+  and per-language test counts, balanced accuracy, macro F1, precision, recall
+  and confusion matrix. Describe split by source message group.
+- **Shift monitoring**: paste actual baseline/shifted rates, chosen threshold,
+  whether alert fired, and the human review action.
+- **Impact**: attach a one-page beneficiary/reach/adoption statement.
+- **Architecture**: English CSVs -> normalization & group split -> verified
+  translated samples -> TF-IDF/logistic regression -> HTTP API -> prediction
+  logs -> OOV drift monitoring -> human review/retraining recommendation.
+- **AI coding tools**: record assistant name/tool usage and human validation.
+- **Pitch**: provide the required 8-minute presentation as a PDF.
+
+The scripts and tests establish an implementation workflow, **not** verified
+multilingual model performance or an observed drift alert. Those require a
+successful run with local datasets and annotations.
