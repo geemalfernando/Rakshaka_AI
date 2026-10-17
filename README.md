@@ -45,7 +45,11 @@ docker compose up --build                      # API: http://localhost:8000/docs
 API_PORT=8001 docker compose up --build        # if port 8000 is already taken (UI_PORT works the same way)
 ADMIN_TOKEN=choose-a-secret docker compose up --build   # enables review, history, /retrain and /rollback
 ```
-or, without Docker, one command (macOS / Linux):
+The container was tested by the team on 17 October 2026 with Docker Desktop: `docker compose up --build` builds the
+image, generates the data, trains the model and starts the API and the dashboard. On Windows, Docker is the simplest way
+to run it. In PowerShell, set the token first: `$env:ADMIN_TOKEN = "choose-a-secret"; docker compose up --build`.
+
+or, without Docker, one command (macOS / Linux only; on Windows use Docker or the manual steps below):
 ```bash
 ./run.sh                               # API: http://127.0.0.1:8000/docs   UI: http://localhost:8501
 API_PORT=8001 UI_PORT=8502 ./run.sh    # if 8000 or 8501 is already taken
@@ -56,13 +60,32 @@ RETRAIN=1 ./run.sh                     # regenerate data and retrain first
 only if they are missing, so an existing model and its review history are kept. Then it starts the API, waits for
 `/health`, and starts the dashboard. Ctrl+C stops both.
 
-By hand, the same steps are:
+By hand, the same steps are (macOS / Linux):
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate     # any Python 3.12+
 pip install -r requirements.txt
 python src/make_data.py && (cd src && python train.py && python evaluate.py)   # first run: data + model
-cd src && uvicorn api:app --port 8000                     # terminal 1
+cd src && ADMIN_TOKEN=choose-a-secret uvicorn api:app --port 8000   # terminal 1
 streamlit run app/dashboard.py                            # terminal 2: activate .venv, from the repo root
+```
+Without `ADMIN_TOKEN` the API still runs, but the admin desk is disabled (the admin routes return 503) and nobody can
+log in. Use any long random string, and type the same value on the dashboard's login page (`/login`).
+
+On Windows, Git Bash (the same steps; the virtual environment lives in `.venv/Scripts`):
+```bash
+py -3.12 -m venv .venv && source .venv/Scripts/activate
+pip install -r requirements.txt
+python src/make_data.py && (cd src && python train.py && python evaluate.py)
+cd src && ADMIN_TOKEN=choose-a-secret uvicorn api:app --port 8000   # terminal 1
+streamlit run app/dashboard.py                            # terminal 2: activate .venv, from the repo root
+```
+On Windows, PowerShell (use `;` between commands, not `&&`):
+```powershell
+py -3.12 -m venv .venv; .venv\Scripts\Activate.ps1   # if scripts are blocked: Set-ExecutionPolicy -Scope Process Bypass
+pip install -r requirements.txt
+python src/make_data.py; cd src; python train.py; python evaluate.py; cd ..
+cd src; $env:ADMIN_TOKEN = "choose-a-secret"; uvicorn api:app --port 8000   # terminal 1
+streamlit run app/dashboard.py                                            # terminal 2: activate .venv, from the repo root
 ```
 On Windows the dashboard calls the API on `127.0.0.1`, not `localhost`. Using `localhost` adds about 2 s per
 request because of the IPv6 fallback.
