@@ -1,94 +1,16 @@
 # Rakshaka AI
 
-Rakshaka AI detects scam messages submitted in English, Sinhala, Singlish, Tamil, and Tanglish
-(Sinhala/Tamil written with Latin characters). The supplied CSVs are English-only,
-so this workflow preserves them and creates a balanced, human-review translation
-sample. It does not generate translations automatically.
-
-## Data workflow
-
-1. Install dependencies: `python -m pip install -r requirements.txt`.
-2. Place the two source datasets at `spam.csv` and
-   `SMS PHISHING DATASET FOR MACHINE LEARNING AND PATTERN RECOGNITION/Dataset_5971.csv`.
-   They are not included in this repository because redistribution rights were
-   not established.
-3. Clean and combine both source datasets:
-   `python scripts/prepare_data.py`.
-   This standardizes `ham` as `legitimate` and `spam`/`smishing` as `scam`,
-   removes exact text duplicates, retains original labels and source row
-   references, and fails if the same message has conflicting labels.
-4. Review `data/annotation/translation_sample.csv` with native Sinhala
-   speakers. Fill the Sinhala, Singlish, Tamil and Tanglish text independently, and set each
-   language's status to `verified` only after a human reviewer confirms that
-   the translation preserves the message's meaning and scam/legitimate label.
-   Enter the reviewer's name or identifier. The initial sample contains up to
-   100 unique messages per label; change `--sample-per-label` to adjust it.
-5. Train and evaluate:
-   `python scripts/train_model.py`.
-   Only verified translations are used. All language variants sharing an
-   original message are assigned to one train/validation/test split. The
-   training groups are balanced by downsampling the majority class; validation
-   and test sets retain their natural class distributions. Overall and
-   per-language metrics are written to `artifacts/metrics.json`; a language
-   with only one label in a split is marked not evaluable rather than assigned
-   a misleading score.
-6. Add newly observed and reviewed messages to
-   `data/drift/drift_samples.csv` using its existing header, then run
-   `python scripts/monitor_drift.py`. Its unseen character-ngram ratio is a
-   text-shift signal, not a substitute for labeled accuracy evaluation. Alerts
-   recommend human review and retraining; they never retrain automatically.
-7. Run the local prediction API:
-   `python scripts/serve.py`.
-   `GET /health` reports service/model status. `POST /predict` accepts JSON
-   such as `{"message":"...","language":"sinhala"}`; `language` can be
-   `english`, `sinhala`, `singlish`, `tamil`, `tanglish`, or `unknown`. Predictions and drift events
-   are written to `artifacts/predictions.jsonl`. Message contents are not
-   written to prediction logs.
-
-The classifier combines character and word TF-IDF features with logistic
-regression. Character features can represent Sinhala/Tamil scripts and romanized text,
-but performance in those languages is not established until reviewed examples
-are supplied and the model is retrained. Language metadata is caller-provided;
-the service does not pretend to distinguish English from romanized Sinhala
-automatically.
-
-## Streamlit app
-
-There is **one UI**: `app/dashboard.py`. It reads all its data from the FastAPI service (`src/api.py`), so start the API first:
-
-```bash
-python -m pip install -r requirements.txt
-cd src && uvicorn api:app --port 8000          # terminal 1: API
-streamlit run app/dashboard.py                 # terminal 2, from the repo root: UI on http://localhost:8501
-```
-
-If the API runs on another port, set `API_URL`, for example
-`API_URL=http://127.0.0.1:8001 streamlit run app/dashboard.py`.
-
-Three tabs:
-
-- **Check a message.** Paste a message and choose its language. The result shows the verdict (SCAM, LIKELY SAFE, or
-  UNCERTAIN - sent for review), the scam probability, the share of unseen words, and the share of unfamiliar
-  character patterns.
-- **Monitoring & drift.** Shows the drift status and two bar charts that compare the live window with the validation
-  baseline and the alert line: one for the unknown-token rate and one for mean confidence. Below them are a line
-  chart of every check over time, and bar charts by language and by result. "Simulate traffic" sends test or shifted
-  messages so you can watch the drift alert fire. The charts use `GET /predictions`, which never returns message text.
-- **Human review.** Label the queued messages, then **Save labels + retrain**. That writes the labels to
-  `data/reviewed.csv`, retrains, and hot-reloads the new model version. Check each label carefully: every row is
-  used for training.
-
-## Monitoring and response
-
-The API records timestamp, model version, declared language, prediction,
-probability, latency, and a character-ngram drift signal without storing raw
-messages. A drift threshold is a review trigger only; it is not a finding that
-a message is malicious. Reviewers should verify new patterns and labels before
-adding examples to training data or triggering retraining.
 **Problem statement:** An ML service that flags scam SMS and WhatsApp messages in Sinhala, Tamil and Singlish, aimed at first-time mobile-banking users and pensioners in Sri Lanka. It detects and responds when new scam tactics (such as fake SL-UDI digital ID verification) make the model drift.
 
+Rakshaka AI classifies messages in English, Sinhala, Singlish, Tamil and Tanglish (Sinhala and Tamil written in
+Latin letters). A drift monitor notices when incoming messages stop looking like the training data, switches to a
+safe "uncertain" verdict, and routes those messages to human review and one-click retraining.
+
 ## Who it protects
-<!-- TODO: first-time mobile-banking users, rural pensioners, Aswesuma welfare recipients -->
+First-time mobile-banking users, pensioners and welfare recipients who receive scam SMS and WhatsApp messages in
+Sinhala, Tamil or Singlish. These are the groups the Central Bank says scams hit hardest. They include 727,092
+government pensioners and 1,251,522 Aswesuma beneficiary families, within a population of 13.9 million internet
+users. Reach, harm and the path to a pilot are in [IMPACT.md](IMPACT.md).
 
 ## Architecture
 ![Architecture](download.svg)
@@ -135,14 +57,40 @@ API endpoints: `GET /health`, `POST /predict` (`{"text": "...", "language": "sin
 `english`, `sinhala`, `singlish`, `tamil`, `tanglish`, `unknown`), `GET /monitor`, `GET /alerts`,
 `GET /review_queue`, `POST /review`, `POST /retrain`.
 
+## Streamlit dashboard
+
+There is **one UI**: `app/dashboard.py`. It reads all its data from the FastAPI service (`src/api.py`), so start the API first:
+
+```bash
+python -m pip install -r requirements.txt
+cd src && uvicorn api:app --port 8000          # terminal 1: API
+streamlit run app/dashboard.py                 # terminal 2, from the repo root: UI on http://localhost:8501
+```
+
+If the API runs on another port, set `API_URL`, for example
+`API_URL=http://127.0.0.1:8001 streamlit run app/dashboard.py`.
+
+Three tabs:
+
+- **Check a message.** Paste a message and choose its language. The result shows the verdict (SCAM, LIKELY SAFE, or
+  UNCERTAIN - sent for review), the scam probability, the share of unseen words, and the share of unfamiliar
+  character patterns.
+- **Monitoring & drift.** Shows the drift status and two bar charts that compare the live window with the validation
+  baseline and the alert line: one for the unknown-token rate and one for mean confidence. Below them are a line
+  chart of every check over time, and bar charts by language and by result. "Simulate traffic" sends test or shifted
+  messages so you can watch the drift alert fire. The charts use `GET /predictions`, which never returns message text.
+- **Human review.** Label the queued messages, then **Save labels + retrain**. That writes the labels to
+  `data/reviewed.csv`, retrains, and hot-reloads the new model version. Check each label carefully: every row is
+  used for training.
+
 ## Data sources
 | Source | Licence / method | Used for |
 |---|---|---|
 | `src/make_data.py` templates | Synthetic, hand-written by the team with AI assistance (Claude). All names, numbers and links are fake placeholders (`DemoBank`, `07X-XXXXXXX`, `*.example`) | train / val / test / shifted |
 | `data/extra_train.csv` | Synthetic, 188 hand-curated messages written with Claude Code (Claude Opus 5.5), not yet checked by native speakers: Sinhala, Tamil, Singlish and Tanglish, about 23-24 scam and 23-24 legitimate per language. Fake placeholders only (`DemoBank`, `TestPay`, `07X-XXXXXXX`, `*.example`). The wording avoids the held-out test/val templates and their translations, and the shifted-set tactics | train |
-| `data/extra_test.csv` (optional) | <!-- TODO: LLM-generated (model + prompt in data/PROMPTS.md) --> | test |
+| `data/extra_test.csv` (optional) | Not used in this submission. `make_data.py` adds it to the test set if present (prompt template in `data/PROMPTS.md`) | test |
 | `data/reviewed.csv` (runtime) | Labels entered by human reviewers in the dashboard | retraining |
-| UCI SMS Spam Collection, Mendeley SMS Phishing Dataset (optional, not redistributed) | <!-- TODO: confirm licence --> | `scripts/` pipeline only |
+| [UCI SMS Spam Collection](https://archive.ics.uci.edu/dataset/228/sms+spam+collection) (Almeida & Hidalgo, 2011, DOI 10.24432/C5CC84) and [SMS Phishing Dataset for Machine Learning and Pattern Recognition](https://data.mendeley.com/datasets/f45bkkt8pr/1) (Mishra & Soni, 2022, DOI 10.17632/f45bkkt8pr.1) (optional, not included in the repo) | Both CC BY 4.0 | `scripts/` pipeline only |
 
 No real personal data, phone numbers, NIC numbers or screenshots are used, in line with the PDPA No. 9 of 2022.
 Demo messages that mention real programmes or services (Aswesuma, SL-UDI, eZ Cash) are clearly labelled synthetic examples.
@@ -150,7 +98,7 @@ Demo messages that mention real programmes or services (Aswesuma, SL-UDI, eZ Cas
 The data is split **by template**: every message generated from one template lands in exactly one split,
 so test scores measure generalisation to unseen wording instead of memorised templates. The split is
 stratified by (label, language) with seed 42.
-- **Train** (`data/train.csv`): 1,177 rows from 46 templates.
+- **Train** (`data/train.csv`): 1,365 rows: 1,177 from 46 templates plus the 188 messages in `data/extra_train.csv`.
 - **Validation** (`data/val.csv`): 276 rows from 10 unseen templates. Used only to measure the drift-monitor baseline.
 - **Held-out test set** (`data/test.csv`): 264 rows from 12 unseen templates, covering the same tactics as training.
 - **Shifted set** (`data/shifted.csv`): 152 rows from 15 templates with **new tactics**: SL-UDI digital ID / QR
@@ -217,20 +165,31 @@ separate from the main demo.
 
 1. Place the datasets at `spam.csv` and
    `SMS PHISHING DATASET FOR MACHINE LEARNING AND PATTERN RECOGNITION/Dataset_5971.csv`. They are not
-   included in this repository because redistribution rights were not established.
+   included in this repository. Both are CC BY 4.0 (see Data sources), so credit the authors if you share them.
 2. `python scripts/prepare_data.py` maps `ham` to `legitimate` and `spam`/`smishing` to `scam`, removes exact
-   duplicates, keeps the original labels and source row references, and fails on conflicting labels. Existing
-   reviewed annotations are preserved when it runs again.
+   duplicates, keeps the original labels and source row references, and fails on conflicting labels. It also
+   writes `data/annotation/translation_sample.csv`, with up to 100 unique messages per label (`--sample-per-label`).
+   Existing reviewed annotations are preserved when it runs again.
 3. Native speakers fill `data/annotation/translation_sample.csv` (Sinhala, Singlish, Tamil, Tanglish columns)
-   and set each language's status to `verified` with a reviewer identifier. **The code never translates
-   automatically.** Only verified rows are used.
+   independently, and set each language's status to `verified` with a reviewer identifier only after confirming
+   that the translation keeps the message's meaning and label. **The code never translates automatically.** Only
+   verified rows are used.
 4. `python scripts/train_model.py` splits by original message group, so all language variants of one message
-   share a split. It balances training groups and writes overall and per-language metrics to
-   `artifacts/metrics.json`. A language with only one label in a split is marked not evaluable.
-5. `python scripts/monitor_drift.py` and `python scripts/demo_drift.py` report unseen char-ngram ratios. They
-   recommend human review and retraining but never retrain automatically.
-6. `python scripts/serve.py` is the original standard-library HTTP server (legacy). The FastAPI service in `src/api.py`
-   uses the same `rakshaka.service.predict()` and is the supported entry point.
+   share a split. It balances training groups by downsampling the majority class, keeps the natural class mix in
+   validation and test, and writes overall and per-language metrics to `artifacts/metrics.json`. A language with
+   only one label in a split is marked not evaluable rather than given a misleading score.
+5. Add newly observed, reviewed messages to `data/drift/drift_samples.csv` (keep its header), then run
+   `python scripts/monitor_drift.py`; `python scripts/demo_drift.py` compares a baseline file with a shifted one.
+   Both report unseen char-ngram ratios. That is a text-shift signal, not a labelled accuracy measure and not a
+   finding that a message is malicious. They recommend human review and retraining but never retrain automatically.
+6. `python scripts/serve.py` is the original standard-library HTTP server (legacy). It takes
+   `{"message": "...", "language": "sinhala"}` and logs predictions and drift events, without message text, to
+   `artifacts/predictions.jsonl`. The FastAPI service in `src/api.py` uses the same `rakshaka.service.predict()`
+   and is the supported entry point.
+
+Language is declared by the caller; the service does not try to tell English from romanized Sinhala on its own.
+Character features can represent any script, but accuracy in a language is not established until reviewed
+examples in it are added and the model is retrained.
 
 ## Validation
 `python -m unittest discover -s tests` runs 13 unit tests. CI (`.github/workflows/tests.yml`) runs the tests,
@@ -243,7 +202,9 @@ See [IMPACT.md](IMPACT.md).
 - Claude (Anthropic) generated the initial project scaffold (`src/`, `app/`, Docker files), which the team declares as a reused template.
 - Claude Code (Claude Opus 5.5) helped merge the scaffold with the team's `rakshaka/` pipeline, fix bugs,
   write extra synthetic templates and calibrate the drift thresholds. Every change was reviewed by the team.
-- <!-- TODO: list any others, e.g. the LLM used for synthetic data -->
+- Synthetic data: the `src/make_data.py` templates and the 188 messages in `data/extra_train.csv` were written
+  with Claude Code (Claude Opus 5.5). The `extra_train.csv` messages have not yet been checked by native speakers.
+- ChatGPT (OpenAI) was used by a team member to generate Singlish versions of messages from an English dataset.
 
 ## Licence
 MIT (see [LICENSE](LICENSE)).
