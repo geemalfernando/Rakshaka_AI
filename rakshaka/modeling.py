@@ -169,3 +169,30 @@ def char_ngram_oov_ratio(classifier, text):
         return 1.0
     vocabulary = char_vectorizer.vocabulary_
     return sum(ngram not in vocabulary for ngram in ngrams) / len(ngrams)
+
+
+def retrain_gate(current, candidate, max_drop=0.01):
+    """Require candidate to preserve balanced accuracy and both class recalls.
+
+    Return (accepted, reasons). The caller is responsible for deploying only
+    accepted candidates. The gate does not modify any model artifacts.
+    """
+    if not 0 <= max_drop <= 1:
+        raise ValueError("max_drop must be in [0, 1]")
+    metrics = (
+        ("balanced_accuracy", lambda m: m["balanced_accuracy"]),
+        ("scam_recall", lambda m: m["per_class"]["scam"]["recall"]),
+        ("legitimate_recall", lambda m: m["per_class"]["legitimate"]["recall"]),
+    )
+    reasons = []
+    for name, get_value in metrics:
+        before = float(get_value(current))
+        after = float(get_value(candidate))
+        if not (0 <= before <= 1 and 0 <= after <= 1):
+            raise ValueError(f"{name} must be in [0, 1]")
+        if after < before - max_drop - 1e-12:
+            reasons.append(
+                f"{name} decreased from {before:.4f} to {after:.4f} "
+                f"(maximum allowed drop {max_drop:.4f})"
+            )
+    return not reasons, reasons
