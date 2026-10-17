@@ -301,10 +301,18 @@ def render_monitor():
             f"unknown-token rate {base['unk_rate']:.0%} (model {base['version']})."
         )
 
-    st.markdown('<div class="rk-section"><p class="rk-kicker">History</p><h2>Checks over time</h2></div>', unsafe_allow_html=True)
-    predictions = pd.DataFrame(requests.get(f"{API}/predictions", params={"limit": 500}, timeout=5).json())
-    if predictions.empty:
-        st.markdown('<div class="rk-empty">No checks yet. Scan a message, or send a synthetic batch below.</div>', unsafe_allow_html=True)
+    st.subheader("Checks over time")
+    monitor_token = st.text_input("Admin token for prediction history and alerts", type="password", key="monitor_token")
+    if monitor_token:
+        history_response = requests.get(f"{API}/predictions", params={"limit": 500}, headers={"X-Admin-Token": monitor_token}, timeout=10)
+        preds = pd.DataFrame(history_response.json()) if history_response.ok else pd.DataFrame()
+        if not history_response.ok:
+            st.warning("Prediction history is unavailable: verify the admin token.")
+    else:
+        preds = pd.DataFrame()
+        st.info("Enter an admin token to view prediction history.")
+    if preds.empty:
+        st.info("No checks yet. Check a message or simulate traffic below.")
     else:
         predictions["Result"] = predictions.apply(result_of, axis=1)
         logged, scam, legitimate, review = st.columns(4)
@@ -341,114 +349,59 @@ def render_monitor():
                 for text, language in zip(batch.text, batch.language):
                     requests.post(f"{API}/predict", json={"text": text, "language": language}, timeout=30)
             st.rerun()
+    st.subheader("Recent alerts")
+    if monitor_token:
+        alert_response = requests.get(f"{API}/alerts", headers={"X-Admin-Token": monitor_token}, timeout=10)
+        if alert_response.ok:
+            st.dataframe(pd.DataFrame(alert_response.json()))
+        else:
+            st.warning("Alert history requires a valid admin token.")
 
-    st.markdown('<div class="rk-section"><p class="rk-kicker">Log</p><h2>Recent alerts</h2></div>', unsafe_allow_html=True)
-    alerts = pd.DataFrame(requests.get(f"{API}/alerts", timeout=5).json())
-    if alerts.empty:
-        st.markdown('<div class="rk-empty">No alerts yet. A drift episode will be recorded here once.</div>', unsafe_allow_html=True)
+with tab3:
+    st.info("Reviewer access requires the API admin token. The token is never written to a file.")
+    reviewer_token = st.text_input("Admin token", type="password", key="reviewer_token")
+    if not reviewer_token:
+        st.warning("Enter an admin token to view and manage the review queue.")
     else:
-        alerts["When"] = pd.to_datetime(alerts["ts"], unit="s", utc=True).dt.tz_convert("Asia/Colombo").dt.strftime("%d %b %H:%M")
-        st.dataframe(
-            alerts.rename(columns={"kind": "Kind", "detail": "Detail"})[["When", "Kind", "Detail"]],
-            hide_index=True,
-            width="stretch",
-        )
-
-
-def render_review():
-    queue = pd.DataFrame(requests.get(f"{API}/review_queue", timeout=5).json())
-    waiting = len(queue)
-    st.markdown(
-        f"""
-        <div class="rk-section">
-          <p class="rk-kicker">Review</p>
-          <h2>{waiting} message{"s" if waiting != 1 else ""} waiting</h2>
-        </div>
-        <p class="rk-note">Tick a row when it is a scam, then save. Every saved label is used the next time the model trains.</p>
-        """,
-        unsafe_allow_html=True,
-    )
-    if waiting:
-        queue["is_scam"] = queue["label"] == "scam"
-        edited = st.data_editor(
-            queue[["rowid", "text", "language", "confidence", "is_scam"]],
-            disabled=["rowid", "text", "language", "confidence"],
-            column_config={
-                "rowid": "ID",
-                "text": st.column_config.TextColumn("Message", width="large"),
-                "language": "Language",
-                "confidence": st.column_config.NumberColumn("Confidence", format="percent"),
-                "is_scam": st.column_config.CheckboxColumn("Scam"),
-            },
-            width="stretch",
-            hide_index=True,
-        )
-        if st.button("Save labels and retrain", type="primary"):
-            items = [{"rowid": int(row.rowid), "is_scam": bool(row.is_scam)} for row in edited.itertuples()]
-            with st.spinner("Saving labels and training the next model…"):
-                saved = requests.post(f"{API}/review", json={"items": items}, timeout=30).json()["saved"]
-                trained = requests.post(f"{API}/retrain", timeout=180).json()
-            if trained["ok"]:
-                st.success(f"Saved {saved} labels. Retrained → {trained['model_version']}")
-            else:
-                st.error("Retraining failed: " + trained["log"])
-    else:
-        st.markdown(
-            '<div class="rk-empty">The queue is clear. Uncertain checks, and every check during a drift alert, will land here.</div>',
-            unsafe_allow_html=True,
-        )
-
-
-def render_login():
-    if st.session_state.get("admin"):
-        st.switch_page(ADMIN)
-    st.markdown(
-        """
-        <section class="rk-hero">
-          <div class="rk-brand"><span class="rk-hex"></span><span>Admin desk</span><span class="rk-dim">// password only</span></div>
-          <div class="rk-title">Sign in</div>
-          <p class="rk-deck">Monitoring and human review stay on this side of the desk. The public checker does not use a password.</p>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-    _, column, _ = st.columns([1, 1.05, 1])
-    with column:
-        with st.form("admin-login"):
-            secret = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
-        if submitted:
-            if hmac.compare_digest(secret, ADMIN_PASSWORD):
-                st.session_state.admin = True
-                st.switch_page(ADMIN)
-            st.error("That password does not open the admin desk.")
-
-
-def render_admin():
-    if not st.session_state.get("admin"):
-        st.switch_page(LOGIN)
-    model_version = load_health()
-    if model_version is None:
-        return
-    heading, sign_out = st.columns([4, 1])
-    with heading:
-        st.markdown(
-            f'<div class="rk-brand"><span class="rk-hex"></span><span>Admin desk</span><span class="rk-dim">// model {html.escape(str(model_version))}</span></div>',
-            unsafe_allow_html=True,
-        )
-    with sign_out:
-        if st.button("Sign out", width="stretch"):
-            st.session_state.admin = False
-            st.switch_page(CHECK)
-    watch_tab, review_tab = st.tabs(["Monitoring & drift", "Human review"])
-    with watch_tab:
-        render_monitor()
-    with review_tab:
-        render_review()
-
-
-apply_theme()
-CHECK = st.Page(render_check, title="Check a message", url_path="", default=True)
-LOGIN = st.Page(render_login, title="Admin login", url_path="login")
-ADMIN = st.Page(render_admin, title="Admin desk", url_path="admin")
-st.navigation([CHECK, LOGIN, ADMIN], position="hidden").run()
+        headers = {"X-Admin-Token": reviewer_token}
+        try:
+            queue_response = requests.get(f"{API}/review_queue", headers=headers, timeout=10)
+            queue_response.raise_for_status()
+        except requests.RequestException as exc:
+            st.error("Could not access the review queue. Check the admin token and API settings.")
+        else:
+            q = pd.DataFrame(queue_response.json())
+            st.write(f"{len(q)} messages waiting for review")
+            if len(q):
+                q["is_scam"] = q["label"] == "scam"
+                edited = st.data_editor(
+                    q[["rowid", "text", "language", "confidence", "is_scam"]],
+                    disabled=["rowid", "text", "language", "confidence"],
+                    width="stretch",
+                )
+                if st.button("Save labels + retrain"):
+                    items = [
+                        {"rowid": int(r.rowid), "is_scam": bool(r.is_scam)}
+                        for r in edited.itertuples()
+                    ]
+                    try:
+                        review_response = requests.post(
+                            f"{API}/review", json={"items": items}, headers=headers, timeout=30
+                        )
+                        review_response.raise_for_status()
+                        saved = review_response.json()["saved"]
+                        retrain_response = requests.post(
+                            f"{API}/retrain", headers=headers, timeout=180
+                        )
+                        retrain_response.raise_for_status()
+                        result = retrain_response.json()
+                    except requests.RequestException:
+                        st.error("Review/retraining request failed. Check API logs and retry safely.")
+                    else:
+                        if result.get("ok") and result.get("deployed"):
+                            st.success(f"Saved {saved} labels. Deployed {result['model_version']}.")
+                        elif result.get("ok"):
+                            st.warning(f"Saved {saved} labels, but the candidate was not deployed. Review the acceptance gate.")
+                            st.json(result.get("gate", {}))
+                        else:
+                            st.error("Retraining failed: " + result.get("log", "unknown error"))

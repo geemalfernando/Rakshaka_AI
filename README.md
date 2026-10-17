@@ -222,3 +222,26 @@ See [IMPACT.md](IMPACT.md).
 
 ## Licence
 MIT (see [LICENSE](LICENSE)).
+
+
+## Admin access for review and monitoring
+The public message checker stays unauthenticated for local demos. Review queue,
+label submission, retraining, rollback, deletion of queued review text,
+prediction history and alert history require `X-Admin-Token` sent to the API.
+With `ADMIN_TOKEN` unset, administrative routes return 503 (disabled).
+
+For local Docker Compose, set a long random `ADMIN_TOKEN` in your shell or in
+an ignored `.env` file before running `docker compose up --build`.
+Never commit that secret. For example, generate a token using
+`python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+The Streamlit admin tabs ask the reviewer to enter the token as a password field.
+It is forwarded only when that reviewer requests sensitive information or actions.
+Do not configure Streamlit to automatically use an administrator secret for all
+visitors. Access should be restricted to trusted reviewers and protected by
+HTTPS outside localhost.
+
+Note: token authentication is a basic demonstration control, not a complete
+production identity solution. Production deployment additionally requires TLS,
+rate limiting, identity/role management, audit trails, and cross-user access
+isolation. The automated route-guard tests are static regression checks; run
+end-to-end authenticated API tests before public deployment.
