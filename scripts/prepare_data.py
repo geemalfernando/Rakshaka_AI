@@ -1,5 +1,6 @@
 import argparse
 import collections
+import csv
 import sys
 from pathlib import Path
 
@@ -46,11 +47,17 @@ def main():
     labels = collections.Counter(message["label"] for message in messages)
     output_dir = args.output_dir
     write_csv(output_dir / "processed/messages_clean.csv", MESSAGE_FIELDS, messages)
-    write_csv(
-        output_dir / "annotation/translation_sample.csv",
-        ANNOTATION_FIELDS,
-        create_translation_sample(messages, args.sample_per_label, args.seed),
-    )
+    annotation_path = output_dir / "annotation/translation_sample.csv"
+    sample = create_translation_sample(messages, args.sample_per_label, args.seed)
+    # Never overwrite human-reviewed annotations when re-running preparation.
+    if annotation_path.exists():
+        with annotation_path.open("r", encoding="utf-8-sig", newline="") as existing_file:
+            existing = {row["group_id"]: row for row in csv.DictReader(existing_file)}
+        for row in sample:
+            previous = existing.get(row["group_id"])
+            if previous and previous.get("label") == row["label"] and previous.get("english_text") == row["english_text"]:
+                row.update({key: previous[key] for key in ANNOTATION_FIELDS if key in previous and key not in ("group_id", "label", "english_text")})
+    write_csv(annotation_path, ANNOTATION_FIELDS, sample)
     drift_path = output_dir / "drift/drift_samples.csv"
     if not drift_path.exists():
         write_csv(drift_path, DRIFT_FIELDS, [])
