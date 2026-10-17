@@ -304,3 +304,23 @@ See the updated list at the end of section 8.
   API_URL=http://127.0.0.1:8001 .venv/bin/python -m streamlit run app/dashboard.py --server.port 8501
   ```
   The API uses 8001 because port 8000 is taken on this machine (an old pyenv `serve.py`, PID 63267, and another project's Docker container).
+
+## 14. Model report PDF (about 11:00)
+
+- **Output:** `reports/model_report.pdf` (6 pages). Built by `reports/build_model_report.py` (`.venv/bin/python reports/build_model_report.py`), which writes the charts to `reports/figures/`. It needs `matplotlib` and `reportlab`, installed in `.venv` only; they are not in `requirements.txt` because the product doesn't need them.
+- **Model comparison:** run once, saved to `reports/model_comparison.json`. The same preprocessing for every model. Each was scored by 5-fold `GroupKFold` cross-validation by template on train+val+test, by the held-out test of the English public datasets, by the shifted set, by confidence on val vs shifted, and by ms per message.
+
+  | Model | CV bal. acc. | English bal. acc. | Shifted | ms/msg |
+  |---|---|---|---|---|
+  | Naive Bayes | 0.891 | 0.970 | 0.884 | 0.11 |
+  | LogReg, words only | 0.926 | 0.970 | 0.977 | 0.21 |
+  | Random forest | **0.970** | 0.959 | 0.958 | 25.5 |
+  | Linear SVM, calibrated | 0.957 | **0.982** | **0.992** | 1.31 |
+  | **LogReg char+word (ours)** | 0.936 | 0.974 | 0.973 | 0.57 |
+
+  Keyword rules (no ML) reached 0.724 on the test set.
+
+  **Honest conclusion:** our model is not the most accurate. We kept it for speed (about 45 times faster than the random forest), built-in probabilities (the API's routing and drift monitor depend on them), consistency across both datasets (the random forest is worst on the English data), Sinhala/Tamil/romanised handling through character n-grams, and fast retraining. The calibrated SVM is the recommended next experiment. Transformers were not benchmarked.
+- The report uses the **clean v1** numbers. It reads the drift baseline from `reports/metrics.json` (saved by `evaluate.py`), not from the live `models/meta.json`. Note that the API had been retrained to **v2** by a later demo run, with 37 review labels.
+- **Corrected a claim:** the README said `extra_train.csv` was "reviewed by the team". It now says "not yet checked by native speakers".
+- **Update after merging the teammate's commits:** they lowered `UNK_RISE` from 0.15 to 0.12 in `src/api.py`. The report builder now reads `WINDOW`, `MIN_WINDOW`, `CONF_DROP`, `UNK_RISE`, `LOW_CONF` and `MSG_UNK` straight from `src/api.py`, so its alert line (now 30.7%) always matches the API. `.gitignore` has `!/reports/model_report.pdf` so the report can be committed.
