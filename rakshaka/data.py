@@ -9,7 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 
 
-LANGUAGES = ("sinhala", "singlish")
+LANGUAGES = ("sinhala", "singlish", "tamil", "tanglish")
 ANNOTATION_FIELDS = [
     "group_id",
     "label",
@@ -20,6 +20,12 @@ ANNOTATION_FIELDS = [
     "singlish_text",
     "singlish_status",
     "singlish_reviewer",
+    "tamil_text",
+    "tamil_status",
+    "tamil_reviewer",
+    "tanglish_text",
+    "tanglish_status",
+    "tanglish_reviewer",
     "review_notes",
 ]
 DRIFT_FIELDS = [
@@ -246,6 +252,12 @@ def create_translation_sample(messages, per_label=100, seed=42):
                     "singlish_text": "",
                     "singlish_status": "pending",
                     "singlish_reviewer": "",
+                    "tamil_text": "",
+                    "tamil_status": "pending",
+                    "tamil_reviewer": "",
+                    "tanglish_text": "",
+                    "tanglish_status": "pending",
+                    "tanglish_reviewer": "",
                     "review_notes": "",
                 }
             )
@@ -261,7 +273,9 @@ def load_verified_translations(path, messages):
 
     with Path(path).open("r", encoding="utf-8-sig", newline="") as csv_file:
         reader = csv.DictReader(csv_file)
-        missing = set(ANNOTATION_FIELDS) - set(reader.fieldnames or ())
+        # Legacy annotation CSVs can be upgraded without losing reviewed work.
+        legacy_optional = {f"{lang}_{suffix}" for lang in ("tamil", "tanglish") for suffix in ("text", "status", "reviewer")}
+        missing = set(ANNOTATION_FIELDS) - set(reader.fieldnames or ()) - legacy_optional
         if missing:
             raise ValueError(
                 "Translation file is missing columns: {}".format(

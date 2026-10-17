@@ -10,7 +10,7 @@ import joblib
 from .modeling import char_ngram_oov_ratio, preprocess_text
 
 
-LANGUAGE_VALUES = {"english", "sinhala", "singlish", "unknown"}
+LANGUAGE_VALUES = {"english", "sinhala", "singlish", "tamil", "tanglish", "unknown"}
 DRIFT_OOV_THRESHOLD = 0.25
 REVIEW_PROBABILITY_LOW = 0.4
 REVIEW_PROBABILITY_HIGH = 0.6

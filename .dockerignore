@@ -1,0 +1,9 @@
+.git
+.venv
+__pycache__
+*.pyc
+artifacts
+data
+spam.csv
+SMS PHISHING DATASET FOR MACHINE LEARNING AND PATTERN RECOGNITION
+*.pdf
