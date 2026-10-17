@@ -346,6 +346,13 @@ the full data → train → evaluate pipeline and a container build.
 ## Impact statement
 See [IMPACT.md](IMPACT.md).
 
+## Pitch deck and demo video
+- [submission/Rakshaka_AI_Pitch_Deck.pdf](submission/Rakshaka_AI_Pitch_Deck.pdf): the 14-slide pitch deck.
+- [submission/Rakshaka_AI_Demo_2min.mp4](submission/Rakshaka_AI_Demo_2min.mp4): a 2½-minute backup recording of the
+  live demo (public checker, admin login, drift simulation, human review, gated retrain to v2). It was recorded from the
+  running app; the narration is a Microsoft neural text-to-speech voice (generated with `edge-tts`). All messages shown
+  are synthetic.
+
 ## AI tools used
 - Claude (Anthropic) generated the initial project scaffold (`src/`, `app/`, Docker files), which the team declares as a reused template.
 - Claude Code (Claude Opus 5.5) helped merge the scaffold with the team's `rakshaka/` pipeline, fix bugs,
