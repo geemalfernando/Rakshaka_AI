@@ -1,0 +1,79 @@
+{
+  "Naive Bayes (word counts)": {
+    "cv_bal_acc_mean": 0.8913886786046069,
+    "cv_bal_acc_std": 0.07972311000289027,
+    "cv_macro_f1_mean": 0.8818842992336796,
+    "shifted_bal_acc_mean": 0.8843939393939394,
+    "shifted_mean_conf": 0.9804474289906266,
+    "ms_per_message": 0.11339707998558879,
+    "val_conf": 0.9955175371913463,
+    "shift_conf": 0.9923505563571486,
+    "conf_drop": 0.0031669808341976413
+  },
+  "LogReg, word TF-IDF only": {
+    "cv_bal_acc_mean": 0.9258037102575418,
+    "cv_bal_acc_std": 0.05047208733280688,
+    "cv_macro_f1_mean": 0.9149505394153404,
+    "shifted_bal_acc_mean": 0.9772727272727273,
+    "shifted_mean_conf": 0.7373737947986337,
+    "ms_per_message": 0.21212583989836276,
+    "val_conf": 0.7477701059976565,
+    "shift_conf": 0.7292323429614056,
+    "conf_drop": 0.018537763036250876
+  },
+  "Random forest (char+word)": {
+    "cv_bal_acc_mean": 0.9696827132258605,
+    "cv_bal_acc_std": 0.043624797909395045,
+    "cv_macro_f1_mean": 0.9596735932660199,
+    "shifted_bal_acc_mean": 0.9583333333333333,
+    "shifted_mean_conf": 0.8863640350877194,
+    "ms_per_message": 25.506691249320284,
+    "val_conf": 0.9058212560386473,
+    "shift_conf": 0.8724342105263159,
+    "conf_drop": 0.033387045512331404
+  },
+  "Linear SVM, calibrated (char+word)": {
+    "cv_bal_acc_mean": 0.9567806346304053,
+    "cv_bal_acc_std": 0.044409057243925895,
+    "cv_macro_f1_mean": 0.9507595113552902,
+    "shifted_bal_acc_mean": 0.9916666666666666,
+    "shifted_mean_conf": 0.94768222414149,
+    "ms_per_message": 1.3127162493765354,
+    "val_conf": 0.9681884843862805,
+    "shift_conf": 0.924670184896274,
+    "conf_drop": 0.04351829949000652
+  },
+  "LogReg char+word (Rakshaka)": {
+    "cv_bal_acc_mean": 0.9355844628523806,
+    "cv_bal_acc_std": 0.04825073443364146,
+    "cv_macro_f1_mean": 0.9235237526339052,
+    "shifted_bal_acc_mean": 0.9734848484848484,
+    "shifted_mean_conf": 0.8090579112188397,
+    "ms_per_message": 0.569354590261355,
+    "val_conf": 0.8282951440174011,
+    "shift_conf": 0.7993151615848813,
+    "conf_drop": 0.02897998243251987
+  },
+  "_english": {
+    "Naive Bayes (word counts)": {
+      "bal_acc": 0.9695252578682888,
+      "macro_f1": 0.9630287172213663
+    },
+    "LogReg, word TF-IDF only": {
+      "bal_acc": 0.9700343824385083,
+      "macro_f1": 0.9690945294314641
+    },
+    "Random forest (char+word)": {
+      "bal_acc": 0.9592700343824385,
+      "macro_f1": 0.9715432869014575
+    },
+    "Linear SVM, calibrated (char+word)": {
+      "bal_acc": 0.9823261042052367,
+      "macro_f1": 0.9852423438630336
+    },
+    "LogReg char+word (Rakshaka)": {
+      "bal_acc": 0.9744313673631314,
+      "macro_f1": 0.9802025258846285
+    }
+  }
+}

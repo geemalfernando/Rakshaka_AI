@@ -262,3 +262,45 @@ See the updated list at the end of section 8.
 - The `app.py` UI on 8501 is stopped. The file is still in the repo; deleting it is up to the team.
 - Verified with Streamlit `AppTest`: no exceptions. I clicked "Send 50 from test set": status "Model healthy", mean confidence 0.829, unknown-token rate 10%, 5 charts rendered. Unit tests pass.
 - **Running now:** API http://127.0.0.1:8001/docs and UI http://localhost:8502.
+
+## 12. Clean reset before the demo (about 10:40)
+
+- **Why:** the dashboard demo had been run a few times, leaving the model at v7 with 83 review labels in `data/reviewed.csv`. Five of those labels were wrong: four Sinhala water-bill messages from the **held-out test set** labelled `scam` (they are legitimate), and one Tamil "account frozen" scam labelled `legitimate`. Wrong labels poison retraining, and test messages in training leak into evaluation.
+- **Backup first:** `backups/pre-demo-reset-20261017-103939/` holds reviewed.csv, the model, meta.json, vocab.json, predictions.db, service.log and metrics.json. `/backups/` is added to `.gitignore`.
+- **Reset:**
+  ```bash
+  rm data/reviewed.csv models/meta.json logs/predictions.db   # meta.json removed so the version restarts at v1
+  cd src && python train.py && python evaluate.py
+  ```
+  Then I restarted the API on 8001.
+- **Clean v1** (synthetic data + `extra_train.csv`, no review labels):
+
+  | Set | Balanced acc. | Macro F1 | Mean conf. | Unknown-token rate | Confusion matrix |
+  |---|---|---|---|---|---|
+  | val (baseline) | | | 0.828 | 18.7% | |
+  | test | 0.926 | 0.946 | 0.823 | 12.3% | [[63,11],[0,190]] |
+  | shifted | 1.000 | 1.000 | 0.799 | **38.1%** | [[20,0],[0,132]] |
+
+  Per language on test: English 1.00, Singlish 1.00, Tamil 1.00, Sinhala 0.63. **These are the honest numbers for the README.**
+  Drift should still fire on shifted traffic: the alert line is 18.7% + 15 = 33.7%, and shifted messages average 38.1%.
+- **Clean state:** `/monitor` WARMING_UP 0, `/predictions` empty, `/alerts` empty, `/review_queue` empty. The UI on 8502 is up.
+- **To reset again before the pitch:** stop the API, back up and delete the same three files, retrain, then start the API.
+- **During the live demo:** in the review tab, **tick or untick every row deliberately**. The checkbox starts at the model's guess.
+
+## 13. Removed the old UI; single UI on 8501 (about 10:45)
+
+- Deleted `app.py`, `rakshaka/ui_data.py` (used only by `app.py`) and `tests/test_ui_data.py` with `git rm`. They're recoverable from git history (PR #2). `.streamlit/config.toml` stays; its theme also applies to the dashboard.
+- **Merge bug fixed:** `.github/workflows/tests.yml` had two `run:` keys in the "Compile Python files" step, which is invalid YAML, so CI would fail. Kept `compileall -q rakshaka scripts tests src app`.
+- Removed the `app.py` mentions from the README and `CLAUDE.md`. Tests: 13 OK.
+- **Running now:**
+
+  | What | URL |
+  |---|---|
+  | UI (`app/dashboard.py`) | http://localhost:8501 |
+  | API (`src/api.py`, clean v1) | http://127.0.0.1:8001/docs |
+
+  ```bash
+  cd src && ../.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8001
+  API_URL=http://127.0.0.1:8001 .venv/bin/python -m streamlit run app/dashboard.py --server.port 8501
+  ```
+  The API uses 8001 because port 8000 is taken on this machine (an old pyenv `serve.py`, PID 63267, and another project's Docker container).

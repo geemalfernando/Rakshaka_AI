@@ -49,7 +49,6 @@ There are two pipelines that share the `rakshaka/` library.
   - check a message
   - monitoring: live-window vs baseline bar charts with alert lines from `/monitor`'s `thresholds`, plus checks-over-time, language and result charts from `GET /predictions`, which never returns message text. "Simulate traffic" sends the test or shifted set.
   - the human review queue with a save + retrain button
-- `app.py` (root, from PR #2) is a superseded standalone UI that loads `artifacts/model.joblib` directly. Don't extend it.
 
 **2. Optional public-dataset pipeline: `scripts/`, writing to `artifacts/`.**
 - It trains on two English SMS datasets that are not redistributed (`spam.csv` and the `SMS PHISHING DATASET .../Dataset_5971.csv` folder) plus *human-verified* translations from `data/annotation/translation_sample.csv`. Each translation row needs status `verified`, the text and a reviewer. The code never translates automatically.

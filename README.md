@@ -54,39 +54,29 @@ automatically.
 
 ## Streamlit app
 
-The browser app is the place a person brings a message they already received,
-from a phone text, an email, or anywhere else. Scoring starts when they press
-**Check this message**. The app does not read a phone or an inbox.
+There is **one UI**: `app/dashboard.py`. It reads all its data from the FastAPI service (`src/api.py`), so start the API first:
 
 ```bash
 python -m pip install -r requirements.txt
-streamlit run app.py
+cd src && uvicorn api:app --port 8000          # terminal 1: API
+streamlit run app/dashboard.py                 # terminal 2, from the repo root: UI on http://localhost:8501
 ```
 
-Three screens:
+If the API runs on another port, set `API_URL`, for example
+`API_URL=http://127.0.0.1:8001 streamlit run app/dashboard.py`.
 
-- **Check a message.** The form asks where the message came from (phone text,
-  email, or other), the language, and the message text. The result appears
-  under the form after submit.
-- **Drift watch.** Admins see a before/after comparison of cleaned messages
-  against a shifted set, a chart of submitted checks, and the review inbox.
-  The watch line is an unseen character-ngram ratio of 0.25. A shift recommends
-  human review and retraining. The app never retrains by itself.
-- **Who this protects.** A one-page impact note: who is protected, team
-  estimates of reach and harm, and a pilot path. Edit `IMPACT_ESTIMATES` in
-  `app.py` to replace the placeholder figures. They are labelled as team
-  estimates on the page.
+Three tabs:
 
-`artifacts/predictions.jsonl` records the time, model version, language,
-source, prediction, scam probability, drift ratio, and latency. It does not
-store the message text. `artifacts/review_queue.jsonl` stores the message text
-only when the person presses **Send this to a reviewer**.
-
-If `artifacts/model.joblib` is missing, the app still opens and says to train
-first. Drift watch uses `data/processed/messages_clean.csv` and, when present,
-`data/drift/drift_samples.csv`. Otherwise it uses the same built-in sample
-shift as `scripts/demo_drift.py`. The prediction API is unchanged:
-`python scripts/serve.py`.
+- **Check a message.** Paste a message and choose its language. The result shows the verdict (SCAM, LIKELY SAFE, or
+  UNCERTAIN - sent for review), the scam probability, the share of unseen words, and the share of unfamiliar
+  character patterns.
+- **Monitoring & drift.** Shows the drift status and two bar charts that compare the live window with the validation
+  baseline and the alert line: one for the unknown-token rate and one for mean confidence. Below them are a line
+  chart of every check over time, and bar charts by language and by result. "Simulate traffic" sends test or shifted
+  messages so you can watch the drift alert fire. The charts use `GET /predictions`, which never returns message text.
+- **Human review.** Label the queued messages, then **Save labels + retrain**. That writes the labels to
+  `data/reviewed.csv`, retrains, and hot-reloads the new model version. Check each label carefully: every row is
+  used for training.
 
 ## Monitoring and response
 
@@ -149,7 +139,7 @@ API endpoints: `GET /health`, `POST /predict` (`{"text": "...", "language": "sin
 | Source | Licence / method | Used for |
 |---|---|---|
 | `src/make_data.py` templates | Synthetic, hand-written by the team with AI assistance (Claude). All names, numbers and links are fake placeholders (`DemoBank`, `07X-XXXXXXX`, `*.example`) | train / val / test / shifted |
-| `data/extra_train.csv` | Synthetic, 188 hand-curated messages written with Claude Code (Claude Opus 5.5) and reviewed by the team: Sinhala, Tamil, Singlish and Tanglish, about 23-24 scam and 23-24 legitimate per language. Fake placeholders only (`DemoBank`, `TestPay`, `07X-XXXXXXX`, `*.example`). The wording avoids the held-out test/val templates and their translations, and the shifted-set tactics | train |
+| `data/extra_train.csv` | Synthetic, 188 hand-curated messages written with Claude Code (Claude Opus 5.5), not yet checked by native speakers: Sinhala, Tamil, Singlish and Tanglish, about 23-24 scam and 23-24 legitimate per language. Fake placeholders only (`DemoBank`, `TestPay`, `07X-XXXXXXX`, `*.example`). The wording avoids the held-out test/val templates and their translations, and the shifted-set tactics | train |
 | `data/extra_test.csv` (optional) | <!-- TODO: LLM-generated (model + prompt in data/PROMPTS.md) --> | test |
 | `data/reviewed.csv` (runtime) | Labels entered by human reviewers in the dashboard | retraining |
 | UCI SMS Spam Collection, Mendeley SMS Phishing Dataset (optional, not redistributed) | <!-- TODO: confirm licence --> | `scripts/` pipeline only |
