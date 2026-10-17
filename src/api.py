@@ -1,9 +1,9 @@
 """FastAPI service: prediction + logging + drift monitoring + human-review queue."""
-import csv, hmac, json, os, shutil, sqlite3, hashlib, time, pathlib, logging, subprocess, sys, threading
-from collections import deque
+import csv, hmac, json, os, random, shutil, sqlite3, hashlib, time, pathlib, logging, subprocess, sys, threading
+from collections import defaultdict, deque
 from typing import List, Optional
-from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel, Field
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -34,6 +34,11 @@ MODEL_FILES = ("model.joblib", "vocab.json", "meta.json")
 # ---- admin access and privacy ----
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")   # required for review, retrain and rollback; unset = admin disabled
 RETENTION_DAYS = float(os.getenv("RETENTION_DAYS", "7"))   # unreviewed message text is erased after this
+# ---- abuse limits ----
+PREDICT_PER_MINUTE = int(os.getenv("PREDICT_PER_MINUTE", "120"))   # per client; stops one caller flooding the drift window
+SIM_MAX = 100                 # messages per simulation run
+SIM_MIN_INTERVAL = float(os.getenv("SIM_MIN_INTERVAL", "3"))       # seconds between simulation runs
+SIM_SETS = {"test": DATA / "test.csv", "shifted": DATA / "shifted.csv"}   # fixed synthetic datasets only
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                     handlers=[logging.FileHandler(LOGS / "service.log", encoding="utf-8"), logging.StreamHandler()])
@@ -41,8 +46,13 @@ log = logging.getLogger("rakshaka")
 
 app = FastAPI(title="Rakshaka AI")
 state = {}
-window = deque(maxlen=WINDOW)
+# live traffic and admin drift simulations keep separate windows, so a demo never touches live drift metrics
+windows = {"live": deque(maxlen=WINDOW), "simulation": deque(maxlen=WINDOW)}
+window = windows["live"]
+last_status = {"live": None, "simulation": None}
 retrain_lock = threading.Lock()
+sim_lock = threading.Lock()
+predict_calls = defaultdict(deque)   # client -> timestamps of recent /predict calls
 
 def db():
     con = sqlite3.connect(DB)
@@ -51,6 +61,8 @@ def db():
     con.execute("""CREATE TABLE IF NOT EXISTS predictions(ts REAL, text_hash TEXT, text TEXT, language TEXT,
                    label TEXT, confidence REAL, unk REAL, oov REAL, model_version TEXT, routed TEXT,
                    reviewed INT DEFAULT 0)""")
+    if "source" not in {row[1] for row in con.execute("PRAGMA table_info(predictions)")}:
+        con.execute("ALTER TABLE predictions ADD COLUMN source TEXT DEFAULT 'live'")   # live | simulation
     con.execute("""CREATE TABLE IF NOT EXISTS alerts(ts REAL, kind TEXT, detail TEXT)""")
     return con
 
@@ -60,8 +72,9 @@ def load():
     state["artifact"] = load_artifact(MODELS / "model.joblib")
     state["vocab"] = set(json.loads((MODELS / "vocab.json").read_text(encoding="utf-8")))
     state["meta"] = json.loads((MODELS / "meta.json").read_text(encoding="utf-8"))
-    state["last_status"] = None
-    window.clear()
+    for name in windows:
+        windows[name].clear()
+        last_status[name] = None
     log.info("loaded model %s", state["meta"]["version"])
 
 def purge_expired_text():
@@ -95,60 +108,122 @@ class ReviewItem(BaseModel):
 class Review(BaseModel):
     items: List[ReviewItem]
 
-def drift_status():
+class Simulation(BaseModel):
+    dataset: str = "shifted"                      # "test" (normal wording) or "shifted" (new tactics)
+    n: int = Field(default=50, ge=1, le=SIM_MAX)  # bounded batch size
+
+def drift_status(mode="live"):
     thresholds = {"conf_drop": CONF_DROP, "unk_rise": UNK_RISE, "min_window": MIN_WINDOW, "window": WINDOW}
-    d = drift_signals(list(window), state["meta"], CONF_DROP, UNK_RISE, MIN_WINDOW)   # rakshaka/monitoring.py
-    return {**d, "baseline": state["meta"], "thresholds": thresholds}
+    d = drift_signals(list(windows[mode]), state["meta"], CONF_DROP, UNK_RISE, MIN_WINDOW)   # rakshaka/monitoring.py
+    return {**d, "mode": mode, "baseline": state["meta"], "thresholds": thresholds}
+
+def score(text, language, source="live"):
+    """Classify, update that source's drift window, route, log (text only if sent to review) and alert."""
+    r = rakshaka_predict(state["artifact"], text, language)   # shared with rakshaka/service.py; ValueError on bad input
+    is_scam = r["prediction"] == "scam"
+    conf = max(r["scam_probability"], 1 - r["scam_probability"])
+    unk = unk_rate(text, state["vocab"])
+    windows[source].append((conf, unk, is_scam))
+    d = drift_status(source)
+    # safe fallback: low confidence, mostly-unseen wording, or window drift -> human review,
+    # and warn the user rather than say "safe"
+    routed = "human_review" if (conf < LOW_CONF or unk >= MSG_UNK or d["status"] == "DRIFT") else "auto"
+    verdict = ("SCAM" if is_scam else "LIKELY SAFE") if routed == "auto" else "UNCERTAIN - be careful, sent for review"
+    con = db()
+    cur = con.execute("INSERT INTO predictions(ts,text_hash,text,language,label,confidence,unk,oov,model_version,routed,source)"
+                      " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                      (time.time(), hashlib.sha256(text.encode()).hexdigest()[:16],
+                       text if routed == "human_review" else None, r["language"], r["prediction"], conf, unk,
+                       r["drift_oov_ratio"], state["meta"]["version"], routed, source))
+    if d["status"] == "DRIFT" and last_status[source] != "DRIFT":   # alert once per drift episode
+        kind = "DRIFT" if source == "live" else "DRIFT_SIMULATION"
+        con.execute("INSERT INTO alerts VALUES (?,?,?)", (time.time(), kind, "; ".join(d["signals"])))
+        log.warning("%s: %s -> routing predictions to human review", kind, d["signals"])
+    last_status[source] = d["status"]
+    con.commit(); con.close()
+    log.info("pred id=%s src=%s lang=%s label=%s conf=%.3f unk=%.2f oov=%.2f routed=%s",
+             cur.lastrowid, source, r["language"], r["prediction"], conf, unk, r["drift_oov_ratio"], routed)
+    return {"label": r["prediction"], "verdict": verdict, "confidence": round(conf, 3),
+            "scam_probability": round(r["scam_probability"], 3), "language": r["language"],
+            "unknown_token_rate": round(unk, 3), "char_oov_ratio": round(r["drift_oov_ratio"], 3),
+            "routed": routed, "model_version": state["meta"]["version"]}
+
+def rate_limited(client):
+    """Sliding one-minute window per client for the public /predict endpoint."""
+    now, calls = time.time(), predict_calls[client]
+    while calls and calls[0] < now - 60:
+        calls.popleft()
+    if len(calls) >= PREDICT_PER_MINUTE:
+        return True
+    calls.append(now)
+    return False
 
 @app.get("/health")
 def health():
     return {"ok": True, "model_version": state["meta"]["version"]}
 
 @app.post("/predict")
-def predict(m: Msg):
+def predict(m: Msg, request: Request):
+    """Public checker. Rate-limited per client, so nobody can flood the live drift window."""
+    client = request.client.host if request.client else "unknown"
+    if rate_limited(client):
+        raise HTTPException(status_code=429, detail=f"too many checks: limit is {PREDICT_PER_MINUTE} per minute")
     try:
-        r = rakshaka_predict(state["artifact"], m.text, m.language)   # shared with rakshaka/service.py
+        return score(m.text, m.language, "live")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    is_scam = r["prediction"] == "scam"
-    conf = max(r["scam_probability"], 1 - r["scam_probability"])
-    unk = unk_rate(m.text, state["vocab"])
-    window.append((conf, unk, is_scam))
-    d = drift_status()
-    # safe fallback: low confidence, mostly-unseen wording, or window drift -> human review,
-    # and warn the user rather than say "safe"
-    routed = "human_review" if (conf < LOW_CONF or unk >= MSG_UNK or d["status"] == "DRIFT") else "auto"
-    verdict = ("SCAM" if is_scam else "LIKELY SAFE") if routed == "auto" else "UNCERTAIN - be careful, sent for review"
-    con = db()
-    cur = con.execute("INSERT INTO predictions(ts,text_hash,text,language,label,confidence,unk,oov,model_version,routed)"
-                      " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                      (time.time(), hashlib.sha256(m.text.encode()).hexdigest()[:16],
-                       m.text if routed == "human_review" else None, r["language"], r["prediction"], conf, unk,
-                       r["drift_oov_ratio"], state["meta"]["version"], routed))
-    if d["status"] == "DRIFT" and state.get("last_status") != "DRIFT":   # alert once per drift episode
-        con.execute("INSERT INTO alerts VALUES (?,?,?)", (time.time(), "DRIFT", "; ".join(d["signals"])))
-        log.warning("DRIFT ALERT: %s -> routing predictions to human review", d["signals"])
-    state["last_status"] = d["status"]
-    con.commit(); con.close()
-    log.info("pred id=%s lang=%s label=%s conf=%.3f unk=%.2f oov=%.2f routed=%s",
-             cur.lastrowid, r["language"], r["prediction"], conf, unk, r["drift_oov_ratio"], routed)
-    return {"label": r["prediction"], "verdict": verdict, "confidence": round(conf, 3),
-            "scam_probability": round(r["scam_probability"], 3), "language": r["language"],
-            "unknown_token_rate": round(unk, 3), "char_oov_ratio": round(r["drift_oov_ratio"], 3),
-            "routed": routed, "drift": d["status"], "model_version": state["meta"]["version"]}
 
-@app.get("/monitor")
-def monitor():
-    return drift_status()
+@app.get("/monitor", dependencies=[Depends(require_admin)])
+def monitor(mode: str = "live"):
+    """Drift statistics and thresholds (admin). mode=live (real traffic) or mode=simulation (admin demo runs)."""
+    if mode not in windows:
+        raise HTTPException(status_code=400, detail="mode must be live or simulation")
+    return drift_status(mode)
+
+@app.post("/simulate", dependencies=[Depends(require_admin)])
+def simulate(sim: Simulation):
+    """Admin drift demo: score a bounded sample of a fixed synthetic dataset in the separate simulation window.
+    Live drift metrics are untouched. Audited in /alerts."""
+    if sim.dataset not in SIM_SETS:
+        raise HTTPException(status_code=400, detail="dataset must be test or shifted")
+    if not sim_lock.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="a simulation is already running")
+    try:
+        wait = SIM_MIN_INTERVAL - (time.time() - state.get("last_sim", 0))
+        if wait > 0:
+            raise HTTPException(status_code=429, detail=f"wait {wait:.0f} s between simulation runs")
+        state["last_sim"] = time.time()
+        rows = load_labelled_messages(SIM_SETS[sim.dataset])
+        batch = random.sample(rows, min(sim.n, len(rows)))
+        routed = sum(score(r["text"], r["language"], "simulation")["routed"] == "human_review" for r in batch)
+        d = drift_status("simulation")
+        con = db()
+        con.execute("INSERT INTO alerts VALUES (?,?,?)", (time.time(), "SIMULATION",
+                    f"{len(batch)} {sim.dataset} messages; {routed} sent to review; window {d['status']}"))
+        con.commit(); con.close()
+        log.info("simulation: %d %s messages, %d to review, window %s", len(batch), sim.dataset, routed, d["status"])
+        return {"sent": len(batch), "dataset": sim.dataset, "sent_to_review": routed, "monitor": d}
+    finally:
+        sim_lock.release()
+
+@app.post("/simulate/reset", dependencies=[Depends(require_admin)])
+def simulate_reset():
+    """Clear the simulation window (live traffic is not affected)."""
+    windows["simulation"].clear()
+    last_status["simulation"] = None
+    return {"ok": True}
 
 @app.get("/predictions", dependencies=[Depends(require_admin)])
-def predictions(limit: int = 200):
-    """Recent prediction metadata for the dashboard charts. Never returns message text."""
+def predictions(limit: int = 200, source: str = "live"):
+    """Recent prediction metadata for the dashboard charts (source=live, simulation or all). Never returns text."""
+    if source not in ("live", "simulation", "all"):
+        raise HTTPException(status_code=400, detail="source must be live, simulation or all")
     con = db()
-    rows = con.execute("SELECT rowid,ts,language,label,confidence,unk,oov,model_version,routed FROM predictions "
-                       "ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+    rows = con.execute("SELECT rowid,ts,language,label,confidence,unk,oov,model_version,routed,source FROM predictions "
+                       "WHERE ? = 'all' OR COALESCE(source, 'live') = ? ORDER BY ts DESC LIMIT ?",
+                       (source, source, limit)).fetchall()
     con.close()
-    keys = ["rowid", "ts", "language", "label", "confidence", "unk", "oov", "model_version", "routed"]
+    keys = ["rowid", "ts", "language", "label", "confidence", "unk", "oov", "model_version", "routed", "source"]
     return [dict(zip(keys, r)) for r in reversed(rows)]
 
 @app.get("/review_queue", dependencies=[Depends(require_admin)])

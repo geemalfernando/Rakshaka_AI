@@ -3,7 +3,7 @@ services:
     build: .
     image: rakshaka-ai
     command: uvicorn api:app --host 0.0.0.0 --port 8000
-    environment:
+    environment:   # admin endpoints need ADMIN_TOKEN; unset = disabled (503)
       ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
       RETENTION_DAYS: "${RETENTION_DAYS:-7}"
     ports: ["${API_PORT:-8000}:8000"]   # host port: API_PORT=8001 docker compose up

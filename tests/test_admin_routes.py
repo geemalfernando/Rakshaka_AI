@@ -14,6 +14,7 @@ class AdminRouteSecurityTests(unittest.TestCase):
         protected = {
             "/review_queue", "/review", "/retrain", "/rollback",
             "/predictions", "/alerts", "/review_queue/{rowid}",
+            "/monitor", "/simulate", "/simulate/reset",
         }
         guarded = set()
         for node in tree.body:
@@ -39,12 +40,37 @@ class AdminRouteSecurityTests(unittest.TestCase):
                 guarded.add(path_arg.value)
         self.assertEqual(guarded, protected)
 
-    def test_dashboard_passes_admin_header_to_review_and_retrain(self):
+    def test_dashboard_passes_admin_header_to_every_admin_call(self):
+        """Every requests.<method>(f"{API}/<admin path>...") call in the dashboard must send headers=."""
         source = DASHBOARD.read_text(encoding="utf-8")
-        self.assertIn('"X-Admin-Token": reviewer_token', source)
-        self.assertIn('f"{API}/review", json={"items": items}, headers=headers', source)
-        self.assertIn('f"{API}/retrain", headers=headers', source)
+        tree = ast.parse(source)
+        admin_paths = ("/review_queue", "/review", "/retrain", "/rollback", "/predictions", "/alerts", "/monitor", "/simulate")
+        seen = set()
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name) and node.func.value.id == "requests"
+                    and node.args and isinstance(node.args[0], ast.JoinedStr)):
+                continue
+            literal = "".join(v.value for v in node.args[0].values if isinstance(v, ast.Constant))
+            path = next((p for p in admin_paths if literal.startswith(p)), None)
+            if path is None:
+                continue
+            seen.add(path)
+            self.assertIn("headers", [kw.arg for kw in node.keywords],
+                          f"requests.{node.func.attr}(...{literal}) must send the admin token header")
+        self.assertEqual(seen, set(admin_paths), "every admin endpoint should be reachable from the dashboard")
+        self.assertIn('"X-Admin-Token"', source)
         self.assertIn('type="password"', source)
+
+    def test_dashboard_never_simulates_through_public_predict(self):
+        source = DASHBOARD.read_text(encoding="utf-8")
+        self.assertNotIn('requests.post(f"{API}/predict", json={"text": text, "language": language}', source)
+        self.assertIn('f"{API}/simulate"', source)
+
+    def test_dashboard_holds_no_hard_coded_admin_secret(self):
+        source = DASHBOARD.read_text(encoding="utf-8")
+        self.assertNotIn("ADMIN_PASSWORD", source)
+        self.assertNotIn("scamproof", source)
 
     def test_admin_check_is_fail_closed(self):
         source = API.read_text(encoding="utf-8")

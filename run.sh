@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 # Optional local .env (gitignored, also read by docker compose); variables already set in the shell win.
 if [ -f .env ]; then
   while IFS="=" read -r key value; do
-    case "$key" in API_PORT|UI_PORT) [ -z "${!key:-}" ] && export "$key=$value" || true ;; esac
+    case "$key" in API_PORT|UI_PORT|ADMIN_TOKEN|RETENTION_DAYS) [ -z "${!key:-}" ] && export "$key=$value" || true ;; esac
   done < .env
 fi
 API_PORT="${API_PORT:-8000}"
@@ -65,7 +65,13 @@ if [ "$missing" = 1 ] || [ "${RETRAIN:-0}" = 1 ]; then
   (cd src && ../"$PY" train.py && ../"$PY" evaluate.py)
 fi
 
-# 5. API in the background, stopped again when this script exits
+# 5. Admin token for review / retrain / rollback (a random one for this run if none is set)
+if [ -z "${ADMIN_TOKEN:-}" ]; then
+  ADMIN_TOKEN="$("$PY" -c 'import secrets; print(secrets.token_urlsafe(12))')"
+  export ADMIN_TOKEN
+fi
+
+# 6. API in the background, stopped again when this script exits
 (cd src && exec ../"$PY" -m uvicorn api:app --host 127.0.0.1 --port "$API_PORT") &
 API_PID=$!
 trap 'kill "$API_PID" 2>/dev/null || true' EXIT INT TERM
@@ -78,9 +84,10 @@ curl -fs "http://127.0.0.1:$API_PORT/health" >/dev/null || { echo "The API did n
 echo
 echo "  API:       http://127.0.0.1:$API_PORT/docs"
 echo "  Dashboard: http://localhost:$UI_PORT"
+echo "  Admin token (Human review tab): $ADMIN_TOKEN"
 echo "  Press Ctrl+C to stop both."
 echo
 
-# 6. Dashboard in the foreground
+# 7. Dashboard in the foreground
 API_URL="http://127.0.0.1:$API_PORT" "$PY" -m streamlit run app/dashboard.py \
   --server.port "$UI_PORT" --server.headless true

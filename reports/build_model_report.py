@@ -274,6 +274,7 @@ def build():
 
     W = A4[0] - 36 * mm
     t, s = metrics["test"], metrics["shifted"]
+    ind = metrics.get("independent")
     rk = cmp["LogReg char+word (Rakshaka)"]
     best_cv = max((n for n in cmp if not n.startswith("_")), key=lambda n: cmp[n]["cv_bal_acc_mean"])
     story = []
@@ -473,7 +474,8 @@ def build():
              ["6. Evaluate", "Held-out test and shifted set: balanced accuracy, macro F1, confusion matrix, per-language "
               "scores, confidence and drift rates. Written to reports/metrics.json.", "src/evaluate.py"],
              ["7. Serve and retrain", "FastAPI loads model.joblib. Reviewed labels go to data/reviewed.csv; "
-              "<i>POST /retrain</i> runs step 4-5 again and hot-loads the new version (v1, v2, ...).", "src/api.py"]]
+              "<i>POST /retrain</i> trains a candidate, gates it on val + test, and hot-loads it only if it is not "
+              "worse; otherwise the live model stays.", "src/api.py"]]
     story += [table(steps, [W * 0.16, W * 0.62, W * 0.22])]
 
     # ---- 5. results
@@ -494,9 +496,15 @@ def build():
         "Sinhala legitimate template, a water-bill notice, is flagged as scam in "
         f"{t['by_language']['sinhala']['confusion_matrix'][0][1]} of {sum(t['by_language']['sinhala']['confusion_matrix'][0])} "
         "copies; these are all of the test set's false alarms. Adding the Sinhala extra set raised "
-        "this from 0.50 to 0.63. More native-checked, legitimate Sinhala messages are the top data need.",
-        "<b>Tanglish cannot be scored yet.</b> The test set has no Tanglish messages; a separately written Tanglish "
-        "test set is needed.",
+        "this from 0.50 to 0.63. We did not add bill-style Sinhala messages to training, because that would tune the "
+        "model to the test set.",
+        (f"<b>Independent test set</b> ({ind['rows']} messages in data/extra_test.csv, written separately, never trained "
+         f"on): balanced accuracy <b>{ind['balanced_accuracy']:.3f}</b>. Sinhala "
+         f"{ind['by_language']['sinhala']['balanced_accuracy']:.2f} (all 15 varied legitimate messages correct, so the "
+         "Sinhala problem above is one template, not Sinhala in general). Tanglish "
+         f"{ind['by_language']['tanglish']['balanced_accuracy']:.2f}: the one miss is a boss / gift-card impersonation "
+         "with no link, which falls below 0.60 confidence and is routed to human review.") if ind else
+        "<b>Tanglish cannot be scored yet.</b> The test set has no Tanglish messages.",
         f"Shifted set (new tactics): balanced accuracy {s['balanced_accuracy']:.3f}. The new tactics still use "
         "links and phone numbers, which the model already treats as scam signals. That is why the product uses an "
         "<b>input-drift</b> alarm rather than waiting for accuracy to fall.",
@@ -513,11 +521,16 @@ def build():
     story += bullets([
         f"<b>Safe fallback:</b> during drift, and for any message with confidence below {CFG['LOW_CONF']:.2f} or {CFG['MSG_UNK']:.0%} or more unseen "
         "words, the verdict is 'UNCERTAIN - be careful, sent for review'. It is never 'safe'.",
-        "<b>Human review, then retrain:</b> reviewers label queued messages in the dashboard. <i>/retrain</i> builds "
-        "the next version from those labels and hot-loads it. Labels must be set deliberately: wrong labels poison "
-        "the next model.",
+        "<b>Human review, then a gated retrain:</b> reviewers label queued messages in the dashboard. <i>/retrain</i> "
+        "trains a candidate, then scores it and the live model on a fixed regression set (val + test, never trained "
+        "on). The candidate goes live only if balanced accuracy, scam recall and legitimate recall do not fall by more "
+        "than 0.01. In a test through the API, labels that wrongly ticked legitimate messages as scam were rejected "
+        "(legitimate recall 0.948 to 0.929) and the live model was kept. Correct labels were deployed.",
+        "<b>Rollback and access:</b> a deployed retrain keeps the previous model, and <i>/rollback</i> restores it. "
+        "Review, retrain and rollback need an admin token; without the token they are refused.",
         "<b>Privacy:</b> predictions are logged with a text hash only. Message text is stored only for messages "
-        "routed to human review.",
+        "routed to human review, is erased as soon as a reviewer labels or discards it, and expires after 7 days "
+        "if nobody reviews it.",
     ])
 
     # ---- 7. limitations
@@ -527,7 +540,8 @@ def build():
         f"(cross-validation &plusmn;{rk['cv_bal_acc_std']:.2f}) and are not real-world accuracy.",
         "The Sinhala, Tamil, Singlish and Tanglish texts have not been checked by native speakers. Verify them, and "
         "complete the 200-message human translation sample.",
-        "Write a Tanglish test set, and more legitimate Sinhala messages.",
+        "Have native speakers write more legitimate Sinhala messages and a larger Tanglish test set (65 independent "
+        "messages so far).",
         "Re-run this comparison with the calibrated linear SVM once real reviewed data exists.",
         "Confirm and record the licences of both English datasets in the README.",
     ])

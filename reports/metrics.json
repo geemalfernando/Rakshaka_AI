@@ -2,11 +2,11 @@
   "model_version": "v1",
   "baseline": {
     "version": "v1",
-    "trained_at": "2026-10-17T05:06:19+00:00",
+    "trained_at": "2026-10-17T06:01:52+00:00",
     "n_train": 1365,
     "n_reviewed": 0,
     "n_val": 276,
-    "mean_conf": 0.828295144017401,
+    "mean_conf": 0.8282951440174011,
     "scam_rate": 0.5516483516483517,
     "unk_rate": 0.1866754205229269,
     "oov_rate": 0.24345298833809248
@@ -456,6 +456,155 @@
         "rows": 12,
         "groups": 1,
         "reason": "requires both legitimate and scam examples"
+      }
+    }
+  },
+  "independent": {
+    "rows": 65,
+    "groups": 65,
+    "balanced_accuracy": 0.9833333333333334,
+    "macro_f1": 0.9844831702076868,
+    "confusion_matrix_labels": [
+      "legitimate",
+      "scam"
+    ],
+    "confusion_matrix": [
+      [
+        35,
+        0
+      ],
+      [
+        1,
+        29
+      ]
+    ],
+    "per_class": {
+      "legitimate": {
+        "precision": 0.9722222222222222,
+        "recall": 1.0,
+        "f1-score": 0.9859154929577465,
+        "support": 35.0
+      },
+      "scam": {
+        "precision": 1.0,
+        "recall": 0.9666666666666667,
+        "f1-score": 0.9830508474576272,
+        "support": 30.0
+      },
+      "accuracy": 0.9846153846153847,
+      "macro avg": {
+        "precision": 0.9861111111111112,
+        "recall": 0.9833333333333334,
+        "f1-score": 0.9844831702076868,
+        "support": 65.0
+      },
+      "weighted avg": {
+        "precision": 0.985042735042735,
+        "recall": 0.9846153846153847,
+        "f1-score": 0.9845933488807683,
+        "support": 65.0
+      }
+    },
+    "f1_scam": 0.9831,
+    "mean_conf": 0.7349,
+    "unk_rate": 0.2698,
+    "oov_rate": 0.3693,
+    "by_language": {
+      "sinhala": {
+        "rows": 25,
+        "groups": 25,
+        "balanced_accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            15,
+            0
+          ],
+          [
+            0,
+            10
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 15.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 10.0
+          },
+          "accuracy": 1.0,
+          "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 25.0
+          },
+          "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 25.0
+          }
+        },
+        "evaluable": true
+      },
+      "tanglish": {
+        "rows": 40,
+        "groups": 40,
+        "balanced_accuracy": 0.975,
+        "macro_f1": 0.9749843652282677,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            20,
+            0
+          ],
+          [
+            1,
+            19
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 0.9523809523809523,
+            "recall": 1.0,
+            "f1-score": 0.975609756097561,
+            "support": 20.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 0.95,
+            "f1-score": 0.9743589743589743,
+            "support": 20.0
+          },
+          "accuracy": 0.975,
+          "macro avg": {
+            "precision": 0.9761904761904762,
+            "recall": 0.975,
+            "f1-score": 0.9749843652282677,
+            "support": 40.0
+          },
+          "weighted avg": {
+            "precision": 0.9761904761904763,
+            "recall": 0.975,
+            "f1-score": 0.9749843652282676,
+            "support": 40.0
+          }
+        },
+        "evaluable": true
       }
     }
   }

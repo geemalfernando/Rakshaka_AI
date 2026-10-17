@@ -1,0 +1,66 @@
+text,label,language
+අද රෑ 8ට ක්‍රිකට් තරගය බලන්න එනවද?,legitimate,sinhala
+ඔබගේ රක්ෂණ වාරිකය ගෙවීම සාර්ථකයි. ස්තූතියි.,legitimate,sinhala
+පුස්තකාල පොත් ආපසු දීමේ අවසන් දිනය හෙට.,legitimate,sinhala
+නංගිගේ උපන්දින සාදය සෙනසුරාදා හවස 6ට.,legitimate,sinhala
+ඔබගේ වාහන සේවාව ලබන අඟහරුවාදා උදේ 9ට වෙන් කර ඇත.,legitimate,sinhala
+මම ඔෆිස් එකෙන් පිටත් වුණා. පැය භාගයකින් ගෙදර.,legitimate,sinhala
+"ඔබගේ ජංගම බිල රු. 1,250. ගෙවීමේ අවසන් දිනය 28 වනදා.",legitimate,sinhala
+හෙට පාසල නිවාඩුයි. ළමයින්ට දන්වන්න.,legitimate,sinhala
+ඔබගේ ලියාපදිංචිය සාර්ථකයි. පන්ති ආරම්භ වන්නේ ජනවාරි 5 වනදා.,legitimate,sinhala
+"අම්මා, මම කෑම කෑවා. බය වෙන්න එපා.",legitimate,sinhala
+ඔබගේ DemoBank ණය වාරිකය අද ගෙවා ඇත. ස්තූතියි.,legitimate,sinhala
+ලබන මාසයේ සිට බස් ගාස්තු වැඩි වෙනවා කියලා ආරංචියි.,legitimate,sinhala
+"රෝහලේ වාට්ටු අංක 12, බලන්න එන වේලාව හවස 4 සිට 6 දක්වා.",legitimate,sinhala
+නඩත්තු කටයුතු නිසා හෙට උදේ 9 සිට 12 දක්වා විදුලිය විසන්ධි වේ.,legitimate,sinhala
+"මල්ලි, එනකොට එළවළු ටිකක් ගේන්න.",legitimate,sinhala
+"ඔබට රු. 25,000ක Cash Back එකක් ලැබී ඇත. ලබා ගැනීමට කාඩ්පත් අංකය cashback-lk.example හි ඇතුළත් කරන්න.",scam,sinhala
+"ඔබගේ දරුවා අනතුරකට ලක් වී රෝහලේ. වහාම රු. 50,000ක් 07X-XXXXXXX වෙත යවන්න.",scam,sinhala
+"ඔබගේ ගිණුමට වැරදීමකින් රු. 30,000ක් බැර විය. කරුණාකර එය 07X-XXXXXXX අංකයට ආපසු යවන්න.",scam,sinhala
+ඔබගේ විදුලි මීටරය අද ඉවත් කරනු ලැබේ. වැළැක්වීමට 07X-XXXXXXX අමතා ගෙවීම කරන්න.,scam,sinhala
+"Online ණය! ඇපකරුවන් නැතිව රු. 300,000. සේවා ගාස්තුව පමණක් ගෙවන්න loan-fast.example",scam,sinhala
+ඔබගේ ගුවන් ටිකට්පත අවලංගු විය. මුදල් ආපසු ලබා ගැනීමට refund-air.example හි කාඩ්පත් විස්තර දෙන්න.,scam,sinhala
+"රජයේ රැකියා පුරප්පාඩු: අයදුම් කිරීමට රු. 2,000ක් 07X-XXXXXXX වෙත ගෙවන්න.",scam,sinhala
+ඔබගේ ඇණවුම සඳහා ගෙවීම අසාර්ථකයි. නැවත ගෙවීමට pay-retry.example හි කාඩ්පත් විස්තර ඇතුළත් කරන්න.,scam,sinhala
+ඔබේ නමට අධිකරණ නියෝගයක් නිකුත් කර ඇත. විස්තර සඳහා වහාම 07X-XXXXXXX අමතන්න.,scam,sinhala
+ඔබගේ WhatsApp ගිණුම අද රාත්‍රියේ මකා දැමේ. තහවුරු කිරීමට wa-verify.example ඔබන්න.,scam,sinhala
+"Ungal kuzhandhai accident aagi hospital-la irukku. Udane Rs. 50,000 07X-XXXXXXX ku anuppunga",scam,tanglish
+"Thavaraga ungal account-ku Rs. 30,000 vandhuvittadhu. Thayavu seithu 07X-XXXXXXX ku thirumbi anuppunga",scam,tanglish
+Ungal electricity meter inniku remove pannuvanga. Thadukka 07X-XXXXXXX ku call panni kattunga,scam,tanglish
+Ungal flight ticket cancel aagivittadhu. Refund pera card details-ai refund-air.example il kodungal,scam,tanglish
+"Arasaanga velai vaaippu! Apply seiya Rs. 2,000 07X-XXXXXXX ku kattungal",scam,tanglish
+Ungal order payment fail aagivittadhu. Meendum katta pay-retry.example il card details podungal,scam,tanglish
+Ungal peyaril court order vandhirukku. Udane 07X-XXXXXXX ku call pannunga,scam,tanglish
+Ungal WhatsApp account inniku iravu delete aagum. Confirm seiya wa-verify.example click pannunga,scam,tanglish
+"Cash back Rs. 25,000 kidaichirukku! Pera card number-ai cashback-lk.example il podunga",scam,tanglish
+"Naan ungal manager. Avasaramaga gift card Rs. 10,000 vaangi code-ai enakku anuppunga",scam,tanglish
+"Ungal mobile number-ku Rs. 1,000,000 cash prize! Tax Rs. 5,000 kattinaal panam varum",scam,tanglish
+"Online part time: dhinamum Rs. 8,000. Telegram group-la join pannunga join-task.example",scam,tanglish
+"Aswesuma panam Rs. 15,000 kidaikka ungal OTP-ai 07X-XXXXXXX ku sollunga",scam,tanglish
+"Ungal SIM 5G-ku upgrade. Pudhiya SIM pera 07X-XXXXXXX ku Rs. 1,500 anuppunga",scam,tanglish
+Ungal Gmail-il yaaro login seidhaargal. Password maatra mail-secure.example il pazhaiya password podunga,scam,tanglish
+"Ungal loan approve aagiyullathu. Panam vida processing fee Rs. 4,000 07X-XXXXXXX ku kattungal",scam,tanglish
+"Customs-il ungal parcel irukku. Release seiya Rs. 12,000 kattungal customs-lk.example",scam,tanglish
+Ungal credit card points expire aagudhu. Redeem seiya card details-ai points-lk.example il podungal,scam,tanglish
+Free laptop scheme! Students register seiya Rs. 500 kattungal laptop-scheme.example,scam,tanglish
+Ungal pension niruththappadum. Thodara ungal bank PIN-ai 07X-XXXXXXX ku sollungal,scam,tanglish
+Inniku iravu cricket match paakka varuviya?,legitimate,tanglish
+Ungal insurance premium payment success. Nandri,legitimate,tanglish
+Library book-ai naalaikku return panna vendum,legitimate,tanglish
+Thangachi birthday party Saturday saayangaalam 6 manikku,legitimate,tanglish
+Ungal vehicle service Tuesday kaalai 9 manikku book aagiyullathu,legitimate,tanglish
+Office-la irundhu kilambitten. Arai mani nerathil veetla irupen,legitimate,tanglish
+"Ungal mobile bill Rs. 1,250. Kadaisi thedhi 28",legitimate,tanglish
+Naalai school leave. Pillaigalukku sollunga,legitimate,tanglish
+Ungal registration success. Class January 5 aarambam,legitimate,tanglish
+"Amma, saappitten. Kavalai padaadheenga",legitimate,tanglish
+Ungal DemoBank loan installment inniku kattappattadhu. Nandri,legitimate,tanglish
+"Hospital ward 12, visiting time saayangaalam 4 muthal 6 varai",legitimate,tanglish
+Naalai kaalai 9 muthal 12 varai maintenance-kaaga current irukkaadhu,legitimate,tanglish
+"Thambi, varum podhu konjam kaaikari vaangittu vaa",legitimate,tanglish
+Naalaiya meeting 10 manikku maatrappattadhu,legitimate,tanglish
+Pongal-ku ellorum veettukku vaanga,legitimate,tanglish
+Ungal passport appointment Monday kaalai 8.30. Original documents kondu vaanga,legitimate,tanglish
+Train 15 nimidam late. Station-la wait pannunga,legitimate,tanglish
+"Ungal DemoBank card-il Rs. 2,450 shopping payment. Neenga illai endral card pinpuram ulla number-ku call pannunga",legitimate,tanglish
+Exam results website-la vandhirukku. Check pannu,legitimate,tanglish

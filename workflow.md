@@ -30,6 +30,11 @@ This log records what was done to set up, run, improve and test Rakshaka AI on 1
 | 17 | Pushing to GitHub, CI billing lock | ~10:55 |
 | 18 | Open items, consolidated | ~11:20 |
 | 19 | Final pull: impact statement and README reorder | ~11:30 |
+| 20 | Acting on an external review: safe retraining, independent Sinhala/Tanglish test | ~11:45 |
+| 21 | Reviewer checklist: auth, rollback, privacy, drift tests, required labels | ~11:50 |
+| 22 | Redeploy with Docker | ~11:55 |
+| 23 | Pull of PR #3-#5; main's dashboard was crashing, rebuilt | ~12:05 |
+| 24 | Public vs admin split; server-side drift simulation; rate limit | ~12:15 |
 
 ## 0. Starting point: reading the project and the rules (about 09:20)
 
@@ -440,3 +445,289 @@ Open items were tracked at the end of sections 8, 9 and 10 as work went on. Sect
   - added the missing `GET /predictions` endpoint to the API list
 - Tests: 13 OK. `run.sh` syntax OK.
 - **Still uncommitted:** README, `run.sh`, `docker-compose.yml`, `workflow.md`.
+
+## 20. Acting on an external review (about 11:45)
+
+An external review of the repo listed three critical items: Sinhala false positives, no Tanglish testing, and
+retraining that can make the model worse. Its numbers checked out: 95.8% accuracy is 253 of 264, the Sinhala
+false positives are 11 of 15 legitimate messages, and `/retrain` deployed anything that trained. The
+retraining problem had already happened today: six wrong review labels went straight into live models.
+
+**1. Safe retraining (regression gate)**
+- `src/train.py` takes `--out DIR`, `--version vN` and `--no-reviewed`. Versions follow the live `models/meta.json`.
+- `rakshaka/modeling.py` has a new `retrain_gate(current, candidate, max_drop=0.01)`. It rejects a candidate if
+  balanced accuracy, scam recall or legitimate recall drops by more than 0.01. Unit-tested in
+  `tests/test_retrain_gate.py`.
+- `src/api.py` `/retrain` now:
+  - trains into `models/candidate/`
+  - scores the live model and the candidate on `GATE_SETS` = `val.csv` + `test.csv`, leaving out any text in
+    `reviewed.csv` (demo traffic had sent test messages into review)
+  - promotes the candidate with `os.replace` only if it passes; otherwise keeps the live model
+  - logs a `RETRAIN_DEPLOYED` or `RETRAIN_REJECTED` alert
+  - returns `deployed`, `candidate_version` and `gate`
+- The dashboard's review tab shows deployed / not deployed, with a live vs candidate table.
+- **Gating on `val.csv` alone was tried first and failed:** a poisoned candidate passed, because val has only one
+  legitimate Sinhala template. With val + test, an offline test caught 2 of 3 simulated bad-label batches. The gate
+  is a safety net, not a guarantee.
+- **End to end through the real API**, in a throwaway copy of the project on port 8011:
+  - poisoned labels (all 20 legitimate shifted-set messages as scam) were REJECTED: legitimate recall
+    0.948 → 0.929, v1 stayed live
+  - correct labels were DEPLOYED: balanced accuracy 0.968 → 0.973, v2 went live
+
+**2. Independent Sinhala and Tanglish test set**
+- `data/extra_test.csv`: 65 messages. Sinhala has 15 legitimate (bills, appointments, notices, family) and
+  10 scams (cash-back, child-accident, mistaken-transfer, court-order ...). Tanglish has 20 legitimate and 20 scam.
+- Written before touching training data, separately from the templates and `extra_train.csv`, with no
+  shifted-set tactics. The closest match to any training text is 0.73 (two bill reminders).
+- `src/make_data.py` no longer merges `extra_test.csv` into `test.csv`. `src/evaluate.py` scores it as a separate
+  `independent` set, and takes an optional model-folder argument. The set is **not** in the retrain gate.
+
+**3. Sinhala false positives: diagnosed, not tuned away**
+- Clean model on the independent set: **Sinhala 1.00** (15 of 15 legitimate, 10 of 10 scam), **Tanglish 0.97**.
+  The one miss is a "boss asks for a gift-card code" message with no link, scam probability 0.47, which is routed
+  to human review.
+- So all 11 test false alarms are **one held-out water-bill template**. Its "pay via the official app" wording
+  overlaps with Sinhala scams, and the template test has only one legitimate Sinhala template. Adding bill-style
+  Sinhala messages to training would tune the model to the test set, so it was deliberately not done.
+
+**Results and docs**
+- `reports/metrics.json` was regenerated from a clean v1 (`train.py --out <scratch> --version v1 --no-reviewed`,
+  then `evaluate.py <scratch>`), matching CI:
+  - test 0.926 / F1 0.946
+  - shifted 1.000
+  - **independent 0.983 / F1 0.984**
+- The live `models/` (v3) was not touched. The running API must be restarted to get the new `/retrain`.
+- README: Evaluation has the independent row and the "one template" explanation; Monitoring has the regression
+  gate; the data-sources row for `extra_test.csv` is updated. `CLAUDE.md` describes the retrain flow.
+- Model report: the stale "Tanglish cannot be scored yet" is replaced by the independent results; the gated
+  retrain is described; next steps are updated.
+- Tests: 17 OK.
+
+**Not done (from the review), for the pitch Q&A:**
+- reviewer authentication on `/review`, `/retrain` and `/review_queue`
+- consent, retention and deletion controls
+- an integration test of API + drift + retrain in CI
+- automatic language identification
+- native-speaker review of all synthetic text
+- the pitch PDF
+
+## 21. Reviewer checklist: auth, rollback, privacy, drift tests (about 11:50)
+
+The reviewer's 8-item checklist was written against GitHub and didn't see section 20's local work. Status after
+this round:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Sinhala misclassification | Diagnosed (one template; independent Sinhala 1.00). Not tuned to the test set. Native-speaker data still needed |
+| 2 | Tanglish evaluation | Done: 40 independent messages, 0.97. Native-speaker review still needed |
+| 3 | Safe retraining **and rollback** | Done: gate (section 20) + `models/previous/` + `POST /rollback` |
+| 4 | Admin auth | Done: `X-Admin-Token` on all admin endpoints |
+| 5 | Drift tests | Done: 6 scenario tests in `tests/test_monitoring.py` |
+| 6 | Privacy | Done: erase on label or discard, `RETENTION_DAYS` purge, token-protected queue |
+| 7 | Per-language confusion matrices | Done: README table (test + independent) |
+| 8 | Pitch PDF, demo recording | Team |
+
+**Code**
+- `rakshaka/monitoring.py`: `drift_signals()`, the pure drift decision. `src/api.py` `drift_status()` uses it.
+- `src/api.py`:
+  - `RAKSHAKA_HOME` (test isolation)
+  - `ADMIN_TOKEN` + `require_admin`: 401 for a missing or wrong token, 503 if unset (off, not open), compared
+    with `hmac.compare_digest`
+  - `RETENTION_DAYS` (default 7) + `purge_expired_text()`, run at startup and on every `/review_queue`
+  - `/review` sets text to NULL once labelled
+  - `DELETE /review_queue/{rowid}` discards a message
+  - `/retrain` copies the outgoing model to `models/previous/` before promoting, and candidate versions skip
+    numbers used before a rollback
+  - `POST /rollback` swaps live and previous, with a `ROLLBACK` alert
+- `app/dashboard.py` review tab:
+  - an admin-token field
+  - **no pre-filled labels**: a "your label" select column, so only explicitly labelled rows are saved. This
+    removes the cause of today's six wrong labels.
+  - Save is disabled until something is labelled; Discard and Roll back buttons; the live model version is shown
+- `run.sh`: reads `ADMIN_TOKEN` and `RETENTION_DAYS` from `.env`, generates a random token if none is set, and
+  prints it. `docker-compose.yml` passes `ADMIN_TOKEN` and `RETENTION_DAYS` to the API. The local `.env` has a
+  random `ADMIN_TOKEN` (gitignored).
+
+**Tests: 30 pass**
+- `tests/test_monitoring.py`: low volume, normal traffic over 20 random windows, new tactics, falling confidence,
+  mixed-language windows (20% vs 60% shifted), after a retrain.
+- `tests/test_api_admin.py`: the real FastAPI app with a tiny model in a temporary `RAKSHAKA_HOME`. Covers
+  401 on all 5 admin endpoints (missing and wrong token), public endpoints open, no text in `/predictions`, text
+  erased after labelling, discard, retention, rollback 409 / swap / swap back / alert.
+
+**End to end** (throwaway copy, real API on 8012 + the real dashboard via Streamlit `AppTest`): 50 shifted
+messages → DRIFT (19% → 37%); a wrong token was refused; the right token showed 35 queued messages; Save was
+disabled with no labels; labelling 35 left 0 texts in the log; the gated retrain deployed v2; rollback went to
+v1, then back to v2. All of it was logged as alerts.
+
+**Docs:** the README covers the admin token for Docker, the admin endpoints, the review tab, rollback, privacy,
+the end-to-end evidence, the per-language confusion matrices and the 30-test list. `CLAUDE.md` and the model
+report are updated.
+
+**Not done:** reviewer accounts (one shared token, not per-person logins), consent text for message submitters,
+a CI integration test of the full retrain via subprocess, automatic language identification, native-speaker
+review, and the pitch PDF.
+
+## 22. Redeploy with Docker (about 11:55)
+
+- The user's earlier Docker run was already up on 8001/8501 (via `.env`) and already served the new API, but
+  might have predated the 11:36 dashboard changes. Rebuilt and restarted this project only:
+  `docker compose up -d --build`.
+- **Verified:**
+  - API http://127.0.0.1:8001 serves model v1, built in the image from synthetic data + `extra_train.csv`
+  - UI http://localhost:8501 is up
+  - `/review_queue` returns 401 without a token and 200 with the `.env` `ADMIN_TOKEN`
+  - `/rollback` returns 409 ("no previous model") as expected on a fresh deploy
+  - the Tanglish boss/gift-card message is routed to review as UNCERTAIN (confidence 0.53)
+  - drift threshold 12 points
+- In Docker the admin token is the `ADMIN_TOKEN` line in `.env`, not a printed one (`run.sh` prints it; compose
+  doesn't).
+
+## 23. Pull of PR #3–#5; main's dashboard was crashing (about 12:05)
+
+- **What happened upstream:**
+  - The user's `acc6ed5` "fixIng Docker" pushed part of the local work (API, `train.py`, `evaluate.py`,
+    `make_data.py`, `run.sh`, docs) but **not** `rakshaka/monitoring.py` or `retrain_gate`. So main's API could not
+    import.
+  - Teammates then pushed 13 commits:
+    - **PR #3** re-added `drift_signals` and `retrain_gate`. Same signatures, plus input validation; reason
+      strings use `scam_recall` and similar.
+    - **PR #4** put `/predictions` and `/alerts` behind the admin token, added token fields to the dashboard, and
+      added `tests/test_admin_routes.py` and `tests/test_monitoring_gate.py`.
+    - **PR #5** is the "fraud desk" UI: an altair theme, `app/styles.css`, multi-page navigation with an admin
+      login.
+- **Pulled** with `git stash -u` → `git pull --ff-only` (to `04dc9c5`) → `git stash pop`.
+  - Conflicts: `rakshaka/modeling.py` (kept main's `retrain_gate`) and `app/dashboard.py`.
+  - `rakshaka/monitoring.py`: main's version kept.
+  - `docker-compose.yml`: merged to a single `environment:` block. Two would have been invalid.
+- **Main's dashboard crashed on start:** `NameError: name 'tab3' is not defined`. The PR #5 ← main merge
+  (`bb80151`) deleted `render_review`, `render_login`, `render_admin` and the `st.navigation` wiring, and kept
+  PR #4's `with tab3:` block. **The dashboard on GitHub main does not run.**
+- **The fraud-desk branch also committed a hard-coded password**, `ADMIN_PASSWORD = "scamproof"`. That breaks
+  rule 6.2 (no passwords in the repository), and the secret is now in git history.
+- **Rebuilt `app/dashboard.py`** from the fraud-desk branch (`6a9639d`), combining all three designs:
+  - Login page: the "password" is the **API admin token**, checked by calling `/alerts` with it. 503 means the
+    API has no token ("admin disabled"); 401 means wrong. The token is kept only in `st.session_state` and
+    cleared on sign-out. No secret lives in the dashboard (PR #4's rule). `ADMIN_PASSWORD` is removed.
+  - Monitoring: `/predictions` and `/alerts` are sent with the token (PR #4).
+  - Review: a "Your label" select column with no default (only labelled rows are saved), "Model said" shown for
+    reference, the gate result (deployed or rejected, with a live vs candidate table), Discard unlabelled rows,
+    and Model rollback.
+- **Tests: 44 pass.**
+  - My tests were aligned with main: gate reason strings; `/predictions` and `/alerts` added to the 401 list;
+    the no-text test now sends a token instead of passing on a 401.
+  - Main's string-matching dashboard test was replaced by an AST check that **every** `requests` call to an
+    admin path sends `headers=`, plus a test that `ADMIN_PASSWORD` and `scamproof` are absent.
+- **End to end** (merged API in a throwaway copy on 8013, plus the real page functions through a session-state
+  test harness, because `AppTest.switch_page` can't open function pages):
+  - public page and a check: OK
+  - wrong token refused; right token opened the admin desk (two tabs)
+  - 50 shifted messages: unknown-token rate 39%, 5 charts, 37 waiting for review
+  - Save disabled with no labels; Rollback present; no exceptions
+- README: the endpoint list matches (`/predictions` and `/alerts` are admin), and the test count is 44.
+- **Action needed:**
+  1. Push soon: GitHub main's dashboard is broken until this merge is pushed.
+  2. Treat "scamproof" as a burned password: it's in the history of `6a9639d`. It is no longer used for anything.
+
+## 24. Public vs admin split, server-side drift simulation (about 12:15)
+
+A reviewer's architecture note asked for: a public checker; everything operational behind one authenticated admin
+console; `/monitor` admin-only; and **drift simulation moved off the public `/predict`** into an admin endpoint
+with its own monitoring state, bounded counts, rate limiting and audit logging. The public page, login and admin
+desk existed already (section 23). This round added:
+
+- **`src/api.py`**
+  - `/monitor` is admin-only, with `mode=live|simulation`.
+  - Separate windows `windows["live"]` and `windows["simulation"]`, with per-source `last_status`.
+  - The `score()` helper is shared by `/predict` and `/simulate`.
+  - A `source` column (`live` / `simulation`) is added with `ALTER TABLE` if missing, so existing DBs keep working.
+  - `/predictions?source=`.
+  - `POST /simulate` (admin): `{"dataset": "test"|"shifted", "n": 1..100}` via pydantic `Field(le=100)`; a lock
+    (one run at a time); `SIM_MIN_INTERVAL` (default 3 s, then 429); fixed `SIM_SETS` only; a `SIMULATION`
+    audit alert; simulated drift logged as `DRIFT_SIMULATION`.
+  - `POST /simulate/reset`.
+  - `/predict` is rate-limited per client IP (`PREDICT_PER_MINUTE`, default 120, sliding window, then 429), and
+    no longer returns the `drift` field (drift statistics are admin-only).
+- **`app/dashboard.py`:** the admin desk has 4 tabs:
+  - **Monitoring:** live only, plus alerts.
+  - **Drift simulation:** the buttons call `/simulate`, with its own status, charts and reset. The client-side
+    loop over `/predict` and the CSV reads are removed.
+  - **Human review.**
+  - **Models:** version, training size, labels used, rollback.
+  - Shared `render_window()`, `render_history()` and `get_monitor()` helpers.
+- **Tests: 48 pass.**
+  - `test_admin_routes.py` also requires `require_admin` on `/monitor`, `/simulate` and `/simulate/reset`; checks
+    that every dashboard call to `/monitor` and `/simulate` sends the header; and checks the dashboard never
+    simulates through `/predict`.
+  - `test_api_admin.py` covers simulation isolation (live `n` unchanged, simulation DRIFT, `source=simulation`
+    only, `SIMULATION` + `DRIFT_SIMULATION` alerts, reset), bounds (n=1000 → 422, dataset "train" → 400), spacing
+    (an immediate second run → 429), and the `/predict` rate limit ([200, 200, 200, 429, 429] at a limit of 3).
+- **End to end** (throwaway copy on 8013, real data, page functions via the harness):
+  - public `/monitor` and `/simulate` → 401
+  - login → 4 tabs
+  - "Send new scam tactics" (50) → simulation window DRIFT (19% → 40%), while the **live window stayed at n=0**
+  - 39 messages queued for review; Models tab shows "Live model v1" with rollback
+  - alerts: `SIMULATION`, `DRIFT_SIMULATION`; no exceptions
+- **Still production-only (not done):** per-user accounts and roles, HTTPS, server-side sessions, and a shared
+  rate-limit store (the current limiter is in-memory per API process).
+
+## 25. Local Docker redeploy (about 12:20)
+
+- `docker compose up -d --build`: rebuilt the image and recreated both containers.
+- **Verified:**
+  - API http://127.0.0.1:8001 serves model v1; UI http://localhost:8501 is up
+  - public `/monitor` → 401, with the `.env` token → 200; public `/simulate` → 401
+  - `/predict` on a Tanglish bill scam → SCAM 0.78, with no `drift` field
+  - admin `/simulate` of 50 shifted messages → 37 sent to review, simulation window DRIFT (19% → 36%); the
+    **live window stayed at n = 1** (only the one real check)
+  - simulation window reset afterwards
+- **Side effect:** that verification run put 37 simulated messages in the review queue and added
+  `SIMULATION` / `DRIFT_SIMULATION` entries to the alert log. Use "Discard unlabelled rows" before the demo, or
+  reset as in section 12.
+
+## 26. Light theme with dark green; removed "02 · Desk" (about 12:25)
+
+- **Request:** show the admin token; make the UI a light background with dark green; remove the
+  "02 · Desk / Claim assessment" heading.
+- **Admin token:** the `ADMIN_TOKEN=` line in the local, gitignored `.env`. It was shown to the user. It is never
+  committed.
+- **`app/styles.css`:** palette variables swapped:
+  - `--bg` #f4f7f2, `--surface` #fff, `--text` #10261a, `--muted` #55675b
+  - accent `--lime` → dark green #1f5f3a, `--lime-deep` #154a2c, `--teal` #2f7d5c
+  - `--amber` #a8650a, `--alert` #b3261e
+  - near-black surfaces → white; neon glows → faint dark-green tints; light hairlines → dark hairlines
+  - primary button text → white
+  - the "screen" spotlight blend → "multiply"
+- **`.streamlit/config.toml`:** base light, primary #1f5f3a.
+- **`app/dashboard.py`:** altair axis, grid and legend colours, and all series colours mapped to the same palette.
+  The "02 · Desk / Claim assessment" heading is removed.
+- **Checked visually:** Docker redeployed (`docker compose up -d --build`), then screenshots via Playwright
+  (installed in a scratch folder) driving the local Chrome:
+  - public page with a Tax-refund check: SCAM 68%, light background, dark green headings and button, no "02 · Desk"
+  - login page
+  - admin Drift simulation tab: DRIFT alert (simulation) 19% → 37%, readable charts in grey / dark green / red
+  - tests: 48 OK
+- **Side effect:** the screenshot run added one public check and a 50-message simulation (to the review queue) on
+  the local Docker deployment. Clear the queue before the demo.
+- **Follow-up:** removed the "Claim desk" label above "No claim on file" in the empty result card (`app/dashboard.py`). Redeployed; a screenshot confirms it is gone; 48 tests OK.
+- **Follow-up:** removed the whole empty-state card ("No claim on file" + its help text) from the public page. The right column now stays empty until a message is assessed, then shows the verdict card. Redeployed; screenshot confirms; 48 tests OK.
+
+## 27. Fuller public page (about 12:40)
+
+- **Request:** make the UI fuller and better-looking.
+- **`app/styles.css`:**
+  - container widened from 1120 to 1280px
+  - new components: `.rk-strip` / `.rk-fact` (fact tiles), `.rk-panel` / `.rk-signs` (warning signs and next
+    steps), `.rk-steps` / `.rk-step` (how it works) and `.rk-foot` (dark-green footer note)
+  - responsive: four columns, then two at ≤860px; steps go to one column at ≤520px
+- **`app/dashboard.py`, public page:**
+  - **Fact strip** under the title. "5 languages" and "24/7 drift watch" are fixed; "190/190 test scams caught"
+    and "98% independent test" are read live from `reports/metrics.json` and labelled synthetic, so the numbers
+    stay honest and update after evaluation.
+  - **Right column before a check:** "Before you reply / Warning signs" (OTP/PIN/CVV requests, release fees,
+    urgency or threats, unknown links or numbers), as useful content rather than an empty placeholder.
+  - **After a check:** the verdict card plus a **"What to do now"** list tailored to scam / uncertain / safe.
+  - **Bottom:** "How it works", four steps (paste → model scores → unfamiliar wording held → reviewed, then
+    safely retrained), and a footer saying it uses synthetic data only, with privacy and emergency advice.
+- **Verified:** redeployed Docker. Playwright screenshots of desktop before a check (top and scrolled bottom),
+  after a Bank-alert check (SCAM 71%, with next steps) and a 400px phone (facts two per row). Tests: 48 OK.
