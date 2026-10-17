@@ -41,7 +41,7 @@ There are two pipelines that share the `rakshaka/` library.
   - `meta.json`, which holds the version (`v1`, `v2`, … incremented from the previous meta file) and the baselines measured on **val**: `mean_conf`, `unk_rate`, `oov_rate`
 - `src/api.py` is the FastAPI service. It calls `rakshaka.service.predict()` and logs every prediction to SQLite at `logs/predictions.db`.
   - **Privacy:** raw text is stored only for messages routed to human review; all others keep only a hash. Keep it that way, in line with the PDPA.
-  - **Drift signal:** a rolling window of 50 predictions, judged once it holds 20. It fires if mean confidence drops more than 0.10 below the val baseline, or the unknown-token rate rises more than 15 points above it.
+  - **Drift signal:** a rolling window of 50 predictions, judged once it holds 20. It fires if mean confidence drops more than 0.10 below the val baseline, or the unknown-token rate rises more than 12 points above it.
   - **Response:** drift, confidence below 0.60, or a per-message unknown-token rate of 0.50 or more routes the message to `human_review`, with the verdict "UNCERTAIN - be careful, sent for review". The verdict never says "safe" in that case.
   - An alert is written once per drift episode. `POST /review` appends labels to `data/reviewed.csv`. `POST /retrain` runs `train.py` as a subprocess and hot-reloads the model.
   - The request body is `{"text", "language"}`. Note that the legacy server uses `message`.

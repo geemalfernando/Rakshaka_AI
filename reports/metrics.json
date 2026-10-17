@@ -2,11 +2,11 @@
   "model_version": "v1",
   "baseline": {
     "version": "v1",
-    "trained_at": "2026-10-17T05:09:40+00:00",
+    "trained_at": "2026-10-17T05:06:19+00:00",
     "n_train": 1365,
     "n_reviewed": 0,
     "n_val": 276,
-    "mean_conf": 0.8282951440174011,
+    "mean_conf": 0.828295144017401,
     "scam_rate": 0.5516483516483517,
     "unk_rate": 0.1866754205229269,
     "oov_rate": 0.24345298833809248
