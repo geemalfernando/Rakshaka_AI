@@ -65,8 +65,10 @@ class Review(BaseModel):
     items: List[ReviewItem]
 
 def drift_status():
+    thresholds = {"conf_drop": CONF_DROP, "unk_rise": UNK_RISE, "min_window": MIN_WINDOW, "window": WINDOW}
     if len(window) < MIN_WINDOW:
-        return {"status": "WARMING_UP", "n": len(window), "signals": [], "baseline": state["meta"]}
+        return {"status": "WARMING_UP", "n": len(window), "signals": [], "baseline": state["meta"],
+                "thresholds": thresholds}
     base = state["meta"]
     mean_conf = sum(w[0] for w in window) / len(window)
     mean_unk = sum(w[1] for w in window) / len(window)
@@ -78,7 +80,7 @@ def drift_status():
         signals.append(f"unknown-token rate {base['unk_rate']:.0%} -> {mean_unk:.0%}")
     return {"status": "DRIFT" if signals else "OK", "signals": signals, "n": len(window),
             "mean_conf": round(mean_conf, 3), "unk_rate": round(mean_unk, 3),
-            "scam_rate": round(scam_rate, 3), "baseline": base}
+            "scam_rate": round(scam_rate, 3), "baseline": base, "thresholds": thresholds}
 
 @app.get("/health")
 def health():
@@ -120,6 +122,16 @@ def predict(m: Msg):
 @app.get("/monitor")
 def monitor():
     return drift_status()
+
+@app.get("/predictions")
+def predictions(limit: int = 200):
+    """Recent prediction metadata for the dashboard charts. Never returns message text."""
+    con = db()
+    rows = con.execute("SELECT rowid,ts,language,label,confidence,unk,oov,model_version,routed FROM predictions "
+                       "ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+    con.close()
+    keys = ["rowid", "ts", "language", "label", "confidence", "unk", "oov", "model_version", "routed"]
+    return [dict(zip(keys, r)) for r in reversed(rows)]
 
 @app.get("/review_queue")
 def review_queue(limit: int = 50):
