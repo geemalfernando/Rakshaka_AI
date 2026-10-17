@@ -1,0 +1,10 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+
+/data/
+/artifacts/
+/spam.csv
+/SMS PHISHING DATASET FOR MACHINE LEARNING AND PATTERN RECOGNITION/
+*.pdf
