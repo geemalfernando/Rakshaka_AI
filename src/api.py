@@ -141,7 +141,7 @@ def predict(m: Msg):
 def monitor():
     return drift_status()
 
-@app.get("/predictions")
+@app.get("/predictions", dependencies=[Depends(require_admin)])
 def predictions(limit: int = 200):
     """Recent prediction metadata for the dashboard charts. Never returns message text."""
     con = db()
@@ -184,7 +184,7 @@ def review(rv: Review):
     log.info("human review saved %d labels", saved)
     return {"saved": saved}
 
-@app.get("/alerts")
+@app.get("/alerts", dependencies=[Depends(require_admin)])
 def alerts(limit: int = 20):
     con = db()
     rows = con.execute("SELECT ts,kind,detail FROM alerts ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
