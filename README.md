@@ -52,6 +52,42 @@ are supplied and the model is retrained. Language metadata is caller-provided;
 the service does not pretend to distinguish English from romanized Sinhala
 automatically.
 
+## Streamlit app
+
+The browser app is the place a person brings a message they already received,
+from a phone text, an email, or anywhere else. Scoring starts when they press
+**Check this message**. The app does not read a phone or an inbox.
+
+```bash
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
+
+Three screens:
+
+- **Check a message.** The form asks where the message came from (phone text,
+  email, or other), the language, and the message text. The result appears
+  under the form after submit.
+- **Drift watch.** Admins see a before/after comparison of cleaned messages
+  against a shifted set, a chart of submitted checks, and the review inbox.
+  The watch line is an unseen character-ngram ratio of 0.25. A shift recommends
+  human review and retraining. The app never retrains by itself.
+- **Who this protects.** A one-page impact note: who is protected, team
+  estimates of reach and harm, and a pilot path. Edit `IMPACT_ESTIMATES` in
+  `app.py` to replace the placeholder figures. They are labelled as team
+  estimates on the page.
+
+`artifacts/predictions.jsonl` records the time, model version, language,
+source, prediction, scam probability, drift ratio, and latency. It does not
+store the message text. `artifacts/review_queue.jsonl` stores the message text
+only when the person presses **Send this to a reviewer**.
+
+If `artifacts/model.joblib` is missing, the app still opens and says to train
+first. Drift watch uses `data/processed/messages_clean.csv` and, when present,
+`data/drift/drift_samples.csv`. Otherwise it uses the same built-in sample
+shift as `scripts/demo_drift.py`. The prediction API is unchanged:
+`python scripts/serve.py`.
+
 ## Monitoring and response
 
 The API records timestamp, model version, declared language, prediction,
