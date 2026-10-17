@@ -9,8 +9,22 @@ import pandas as pd
 import requests
 import streamlit as st
 
+import embedded   # app/embedded.py: in-process API for single-app hosting (Streamlit Community Cloud)
+
+# Streamlit Cloud: root-level secrets (RAKSHAKA_EMBEDDED, ADMIN_TOKEN, ...) also become environment variables,
+# so src/api.py reads them the same way as under run.sh or Docker. Shell variables win.
+try:
+    for _key, _value in st.secrets.items():
+        if isinstance(_value, (str, int, float, bool)):
+            os.environ.setdefault(_key, str(_value))
+except Exception:   # no secrets file: local run
+    pass
+
 # 127.0.0.1, not localhost: on Windows "localhost" tries IPv6 first and adds ~2 s per request
 API = os.getenv("API_URL", "http://127.0.0.1:8000")
+if embedded.enabled():
+    requests = embedded          # same get / post / delete interface, served by the in-process FastAPI app
+    API = embedded.PREFIX
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LANGUAGES = ["unknown", "english", "sinhala", "singlish", "tamil", "tanglish"]
 LABELS = {

@@ -117,6 +117,32 @@ simulated checks still enter the review queue, so the review → retrain demo wo
 
 `./run.sh` generates a token when none is set and prints it.
 
+## Hosting on Streamlit Community Cloud
+Streamlit Cloud runs only a Streamlit app, so the dashboard has an **embedded mode** (`app/embedded.py`). With
+`RAKSHAKA_EMBEDDED=1`, the dashboard serves the same FastAPI app (`src/api.py`) **in-process** through Starlette's
+TestClient, instead of calling a separate server. Every request still goes through the real routes: admin token,
+rate limit, live and simulation drift windows, retrain gate and rollback. On first start it generates the synthetic
+data and trains and evaluates the model (a few seconds), as `run.sh` does.
+
+1. Push the repo to GitHub.
+2. On https://share.streamlit.io, choose **Create app**: repository `geemalfernando/Rakshaka_AI`, branch `main`,
+   main file **`app/dashboard.py`**. Under *Advanced settings*, choose **Python 3.12** (the pinned packages need
+   3.12 or newer).
+3. Paste these **Secrets** (TOML). Never commit them; `.streamlit/secrets.toml` is gitignored:
+   ```toml
+   RAKSHAKA_EMBEDDED = "1"
+   ADMIN_TOKEN = "a-long-random-token"      # python -c "import secrets; print(secrets.token_urlsafe(24))"
+   PREDICT_PER_MINUTE = "600"               # all visitors share one in-process limit
+   ```
+4. Deploy. The public checker is at `/`, and the admin desk at `/login`.
+
+To test the same thing locally: create `.streamlit/secrets.toml` with those lines, then run
+`streamlit run app/dashboard.py`.
+
+**Limits of the free hosting:** the file system is temporary, so review labels, retrained models and logs are lost
+when the app restarts. It then starts again from the clean v1 model. All visitors share one rate-limit bucket,
+because requests are in-process. For a persistent pilot, use Docker (`docker compose up --build`) on a server.
+
 ## Streamlit dashboard
 
 There is **one UI**: `app/dashboard.py`. It reads all its data from the FastAPI service (`src/api.py`). `./run.sh`

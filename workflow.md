@@ -731,3 +731,29 @@ desk existed already (section 23). This round added:
     safely retrained), and a footer saying it uses synthetic data only, with privacy and emergency advice.
 - **Verified:** redeployed Docker. Playwright screenshots of desktop before a check (top and scrolled bottom),
   after a Bank-alert check (SCAM 71%, with next steps) and a 400px phone (facts two per row). Tests: 48 OK.
+
+## 28. Hosting on Streamlit Community Cloud: embedded mode (about 12:50)
+
+- **Problem:** Streamlit Cloud runs a single Streamlit app, but the dashboard calls a separate FastAPI server.
+- **Solution: `app/embedded.py`.** It provides the same `get`, `post`, `delete` and `RequestException` interface
+  as `requests`, and routes calls to `src/api.py`'s FastAPI app **in-process** with Starlette's `TestClient`, so
+  the real routes, admin checks, drift windows, gate and rollback all still apply. Responses are wrapped with `.ok`,
+  `.status_code`, `.text`, `.json()` and `raise_for_status()`. On first start, if the model or data files are
+  missing, it runs `make_data.py`, `train.py` and `evaluate.py`.
+- **`app/dashboard.py`:** copies root-level `st.secrets` into `os.environ` (shell values win). If
+  `RAKSHAKA_EMBEDDED=1`, it uses `requests = embedded` and `API = "http://embedded"`. Otherwise nothing changes,
+  so `run.sh` and Docker still call the real API.
+- **`.gitignore`:** `.streamlit/secrets.toml`.
+- **README:** "Hosting on Streamlit Community Cloud" section: main file `app/dashboard.py`, Python 3.12, and
+  secrets `RAKSHAKA_EMBEDDED`, `ADMIN_TOKEN`, `PREDICT_PER_MINUTE`. `CLAUDE.md` is updated too.
+- **Verified like the Cloud would run it:** a clean repo copy with no models or generated data, a
+  `.streamlit/secrets.toml`, and `streamlit run app/dashboard.py` on 8520.
+  - first start trained the model (model files created; "loaded model v1")
+  - Chrome via Playwright: public Parcel-fee check → SCAM 83%; wrong token refused; right token → admin desk;
+    "Send new scam tactics (50)" → "Drift alert (simulation)"
+  - tests: 48 OK
+- **Limits on the free tier:** the file system is temporary, so review labels, retrained models and logs reset when
+  the app restarts. All visitors share one in-process rate-limit bucket. For a persistent pilot, use Docker on a
+  server.
+- **To go live,** a person must: push to GitHub, then create the app on share.streamlit.io with the secrets
+  (this needs the user's Streamlit account).
