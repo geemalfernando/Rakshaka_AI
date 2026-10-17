@@ -41,29 +41,43 @@ flowchart LR
 
 ## How to run
 ```bash
-docker compose up --build        # API: http://localhost:8000/docs   UI: http://localhost:8501
+docker compose up --build                      # API: http://localhost:8000/docs   UI: http://localhost:8501
+API_PORT=8001 docker compose up --build        # if port 8000 is already taken (UI_PORT works the same way)
 ```
-or, without Docker (Python 3.12):
+or, without Docker, one command (macOS / Linux):
 ```bash
-pip install -r requirements.txt
-python src/make_data.py && cd src && python train.py && python evaluate.py
-uvicorn api:app --port 8000                  # from src/
-streamlit run app/dashboard.py               # from the repo root, in a second terminal
+./run.sh                               # API: http://127.0.0.1:8000/docs   UI: http://localhost:8501
+API_PORT=8001 UI_PORT=8502 ./run.sh    # if 8000 or 8501 is already taken
+RETRAIN=1 ./run.sh                     # regenerate data and retrain first
 ```
-`./run.sh` does the same in one go. On Windows the dashboard calls the API on `127.0.0.1`, not `localhost`.
-Using `localhost` adds about 2 s per request because of the IPv6 fallback.
+`run.sh` creates `.venv` on Python 3.12 or newer if it is missing (a plain `python` may be older and fail), installs
+`requirements.txt` when it changes, and checks that both ports are free. It generates the data and trains the model
+only if they are missing, so an existing model and its review history are kept. Then it starts the API, waits for
+`/health`, and starts the dashboard. Ctrl+C stops both.
+
+By hand, the same steps are:
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate     # any Python 3.12+
+pip install -r requirements.txt
+python src/make_data.py && (cd src && python train.py && python evaluate.py)   # first run: data + model
+cd src && uvicorn api:app --port 8000                     # terminal 1
+streamlit run app/dashboard.py                            # terminal 2: activate .venv, from the repo root
+```
+On Windows the dashboard calls the API on `127.0.0.1`, not `localhost`. Using `localhost` adds about 2 s per
+request because of the IPv6 fallback.
 
 API endpoints: `GET /health`, `POST /predict` (`{"text": "...", "language": "sinhala"}`; `language` is one of
 `english`, `sinhala`, `singlish`, `tamil`, `tanglish`, `unknown`), `GET /monitor`, `GET /alerts`,
-`GET /review_queue`, `POST /review`, `POST /retrain`.
+`GET /predictions` (recent prediction metadata for the charts, never message text), `GET /review_queue`,
+`POST /review`, `POST /retrain`.
 
 ## Streamlit dashboard
 
-There is **one UI**: `app/dashboard.py`. It reads all its data from the FastAPI service (`src/api.py`), so start the API first:
+There is **one UI**: `app/dashboard.py`. It reads all its data from the FastAPI service (`src/api.py`). `./run.sh`
+starts both (see [How to run](#how-to-run)). To start them by hand, inside the Python 3.12+ `.venv`:
 
 ```bash
-python -m pip install -r requirements.txt
-cd src && uvicorn api:app --port 8000          # terminal 1: API
+cd src && uvicorn api:app --port 8000          # terminal 1: API (needs a trained model in models/)
 streamlit run app/dashboard.py                 # terminal 2, from the repo root: UI on http://localhost:8501
 ```
 

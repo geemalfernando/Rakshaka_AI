@@ -1,6 +1,50 @@
 # Workflow Log
 
-This log records what was done to set up, run and test Rakshaka AI on 17 October 2026, during the TensorForge 2.0 build window. It also notes what was learned along the way. Times are local (UTC+5:30).
+This log records what was done to set up, run, improve and test Rakshaka AI on 17 October 2026, during the TensorForge 2.0 build window, working with Claude Code (Claude Opus 5.5). It also notes what was learned along the way. Times are local (UTC+5:30). Sections are in time order. Older sections describe the state at that moment; later sections say when something was superseded.
+
+## At a glance (state at about 11:20)
+
+- **Product:** one Streamlit dashboard (`app/dashboard.py`) on top of a FastAPI service (`src/api.py`). The model is TF-IDF character + word n-grams with logistic regression, trained on synthetic English, Sinhala, Singlish, Tamil and Tanglish messages.
+- **Run it:**
+  - Without Docker: `./run.sh`
+  - With Docker: `docker compose down -v && docker compose up --build`
+  - On this Mac the local `.env` moves the API to port **8001**, because 8000 is taken. The UI is at http://localhost:8501.
+- **Clean v1 results** (held-out test): balanced accuracy 0.926, macro F1 0.946, 0 scams missed, 11 of 74 legitimate messages flagged (all of them Sinhala water-bill copies). Sinhala 0.63, the other languages 1.00. The drift alarm fires on the shifted set: unknown-token rate 38.1% against an alert line of 30.7%.
+- **Model report:** `reports/model_report.pdf`, built by `reports/build_model_report.py`.
+- **Live model right now:** v3, trained with 38 review labels from demo runs. One of those labels is wrong (section 18).
+- **What's left:** see section 18, "Open items".
+
+| # | Section | Time |
+|---|---|---|
+| 0 | Starting point: reading the project and the rules | ~09:20 |
+| 1–7 | First pull, dependency fix, English pipeline, legacy API, first tests, CLAUDE.md | ~09:20–09:45 |
+| 8 | Second pull: the FastAPI + Streamlit product | ~09:50 |
+| 9 | Third pull: the `app.py` UI, a requirements merge bug | ~10:00 |
+| 10 | Sinhala, Tamil, Singlish and Tanglish training data | ~10:15 |
+| 11 | One UI: dashboard plus charts | ~10:30 |
+| 12 | Clean reset before the demo | ~10:40 |
+| 13 | Removed the old UI, a CI YAML bug | ~10:45 |
+| 14 | Model report PDF and model comparison | ~11:00 |
+| 15 | One-command local run (`run.sh`) | ~11:10 |
+| 16 | Docker port clash, `.env` | ~11:15 |
+| 17 | Pushing to GitHub, CI billing lock | ~10:55 |
+| 18 | Open items, consolidated | ~11:20 |
+| 19 | Final pull: impact statement and README reorder | ~11:30 |
+
+## 0. Starting point: reading the project and the rules (about 09:20)
+
+- **Project read in full:**
+  - `rakshaka/data.py`, `modeling.py` and `service.py`
+  - `scripts/prepare_data.py`, `train_model.py`, `monitor_drift.py` and `serve.py`
+  - `tests/test_pipeline.py`, the README, the data folders and `artifacts/metrics.json`
+- **Competition rules** (`TensorForge 2.0 Grand Finale.pdf`): a 6-hour build (08:00–14:00) from an empty repository, with the last commit before the deadline judged. The theme is "Scam-Proof by Design": detect scams **and** notice and respond to drift.
+  - Required: a running service started from documented commands (a container is preferred), a reproducible pipeline with exact dependency versions, held-out test results in the README, prediction logging plus a drift signal demonstrated on a shifted set, and a drift response.
+  - Also required: an architecture diagram, a list of data sources and licences, the AI tools used, a one-page impact statement, a pitch deck as a PDF, and an open licence.
+  - Judges weight deployment, monitoring and drift response more heavily than accuracy, and they review commit history.
+- **State at that point:**
+  - an English-only TF-IDF + logistic regression pipeline on the two public SMS datasets
+  - a standard-library HTTP API
+  - an empty drift CSV and 200 translation rows, all still `pending`
 
 ## 1. Syncing with GitHub
 
@@ -120,7 +164,7 @@ What the results show:
 
 ## 7. Open items
 
-See the updated list at the end of section 8.
+Open items were tracked at the end of sections 8, 9 and 10 as work went on. Section 18 is the current, consolidated list.
 
 ## 8. Second pull: the new FastAPI and Streamlit product (about 09:50)
 
@@ -324,3 +368,75 @@ See the updated list at the end of section 8.
 - The report uses the **clean v1** numbers. It reads the drift baseline from `reports/metrics.json` (saved by `evaluate.py`), not from the live `models/meta.json`. Note that the API had been retrained to **v2** by a later demo run, with 37 review labels.
 - **Corrected a claim:** the README said `extra_train.csv` was "reviewed by the team". It now says "not yet checked by native speakers".
 - **Update after merging the teammate's commits:** they lowered `UNK_RISE` from 0.15 to 0.12 in `src/api.py`. The report builder now reads `WINDOW`, `MIN_WINDOW`, `CONF_DROP`, `UNK_RISE`, `LOW_CONF` and `MSG_UNK` straight from `src/api.py`, so its alert line (now 30.7%) always matches the API. `.gitignore` has `!/reports/model_report.pdf` so the report can be committed.
+
+## 15. One-command local run (about 11:10)
+
+- **Problems found:** `python` in a normal terminal here is pyenv 3.8, which can't install the pinned packages (they need 3.12+). The API exits if no model has been trained. `run.sh` wasn't executable and used the system Python. Port 8000 is taken on this machine.
+- **`run.sh` rewritten:**
+  - creates `.venv` with Python 3.12+ if it's missing
+  - installs `requirements.txt` only when its hash changes
+  - checks that `API_PORT` (default 8000) and `UI_PORT` (default 8501) are free, and if not, prints who holds them and how to choose other ports
+  - generates data and trains only when something is missing (`RETRAIN=1` forces it)
+  - starts the API, waits for `/health`, then starts the dashboard; a `trap` stops the API on exit or Ctrl+C
+  - made executable, including in git (`git update-index --chmod=+x`)
+- **Tested:** the default ports fail cleanly because 8000 is busy. `API_PORT=8001 UI_PORT=8501 ./run.sh` brought up the API (v3) and the dashboard, and a Tanglish scam was predicted `SCAM`. Stopping the script released both ports.
+- README "Streamlit app" and "How to run" now give `./run.sh` and working manual steps, using the venv.
+- **Docker was not started.** The safety check blocked stopping PID 63267 (the old pyenv `serve.py`) and the other project's `secure-email-service` containers that hold port 8000. The user has to stop those, or run on other ports.
+
+## 16. Docker port clash (about 11:15)
+
+- `docker compose up` failed: `Bind for 0.0.0.0:8000 failed: port is already allocated`. The other project's `secure-email-service-ses-1` container holds port 8000.
+- `docker-compose.yml` host ports are now configurable, `${API_PORT:-8000}` and `${UI_PORT:-8501}`, matching `run.sh`. Inside Docker the dashboard still reaches `http://api:8000`. Run with `API_PORT=8001 docker compose up --build`. README updated.
+- **Follow-up:** the user ran plain `docker compose up --build` (no `API_PORT`), which still bound 8000, and ran `streamlit run app/dashboard.py` from inside `src/` ("File does not exist"). Fix: added a local, gitignored `.env` with `API_PORT=8001` and `UI_PORT=8501`. Docker Compose reads it automatically, so the default stays 8000 for everyone else. `run.sh` now reads `.env` too, and variables set in the shell still win; this was tested with none, `UI_PORT=8502` and `API_PORT=9000`. I fixed a `set -e` bug in the loader (`|| true`). `../run.sh` from inside `src/` brought the API up on 8001 and the UI on 8501, and stopping it released both ports.
+
+## 17. Pushing to GitHub (about 10:55)
+
+- **Team commits along the way:** the user committed and pushed parts of this work themselves:
+  - `17411e0` "fix ui" (requirements fix, `CLAUDE.md`, `workflow.md`)
+  - `c4015c2` "fix all the ui" (dashboard charts, `/predictions`, `extra_train.csv`)
+  - `6b2c873` "update readme" (old UI removal, README; local only at first)
+- **Push request:** local main was 1 ahead and 4 behind. The teammate (ThisukaMW) had pushed:
+  - "Reports"
+  - a metrics merge
+  - "Fix duplicate run key that made the CI workflow invalid"
+  - "Recalibrate drift threshold": `UNK_RISE` went from 0.15 to **0.12**, and the README results were updated to the clean v1 numbers
+- **Merge `34f280a`:** two conflicts.
+  - `.github/workflows/tests.yml`: main still compiled `app.py`, which our side had deleted. Resolved to `compileall -q rakshaka scripts tests src app`.
+  - `reports/metrics.json`: both sides held the same clean v1 results, differing only in the training timestamp. Kept main's copy.
+- **`3dcc990`:** the model report (PDF, builder, figures) and the `.gitignore` exception `!/reports/model_report.pdf`. The report now reads its thresholds from `src/api.py`, so its alert line became 30.7%.
+- **`38b7bb7`:** the `workflow.md` log. Then `git push origin main` (`665a3a7..38b7bb7`).
+- **CI:** every recent run on main fails within seconds with *"The job was not started because your account is locked due to a billing issue."* No step runs, so this is not a code failure. Fix billing in the GitHub account settings, then re-run from the Actions tab. Locally `compileall` and all 13 tests pass.
+
+## 18. Open items, consolidated (about 11:20)
+
+**Done** (from earlier lists): pin dependencies consistently (Python 3.12 in Docker and CI), fix the `requirements.txt` merge bug, fix the CI duplicate `run:` key, pick one UI, add Sinhala, Tamil, Singlish and Tanglish training data, write the model report, make the app start with one command, commit and push `CLAUDE.md` and `workflow.md`.
+
+**Still open:**
+- [ ] **Commit and push** the current local changes: `run.sh` (venv, port checks, `.env`), `docker-compose.yml` (configurable ports), README run instructions and this `workflow.md`. `.env` stays local; it is gitignored.
+- [ ] **Fix the wrong review label:** `data/reviewed.csv` row 39, the Sinhala "Digital ID notice: go only to the official office" message (shifted-set, **legitimate**), is saved as `scam`. The live model (v3) was trained with it. Fix the row and retrain, or reset as in section 12 before the pitch.
+- [ ] **Stop wrong labels at the source:** make the dashboard's `is_scam` review checkbox start unticked or require confirmation. This caused six of the 121 human labels saved today to be wrong.
+- [ ] **Get Docker running:** run `docker compose down -v && docker compose up --build`. The local `.env` puts the API on 8001. Alternatively stop the other project's `secure-email-service` containers and the old pyenv `serve.py` (PID 63267) to use port 8000.
+- [ ] **Fix CI billing** on the GitHub account and re-run the workflow.
+- [x] ~~**Fill the README TODOs:**~~ done by the teammate in section 19. (Kept for the record:) "Who it protects" (line ~92), the licence of the two English datasets (UCI SMS Spam Collection, Mendeley SMS Phishing Dataset), the `extra_test.csv` source, and any other AI tools used. Fill `IMPACT.md` (who is protected, reach, harm prevented, path to adoption) and the model name in `data/PROMPTS.md`.
+- [ ] **Tidy the README:** the merge left the problem statement under "Monitoring and response", and the old `scripts/` sections sit above the main product sections.
+- [ ] **Data:**
+  - have native speakers check `data/extra_train.csv`
+  - add more legitimate Sinhala messages (Sinhala test 0.63)
+  - write `data/extra_test.csv` so Tanglish can be evaluated
+  - complete the 200-row human translation sample (0 verified)
+- [ ] **Model:** try the calibrated linear SVM. It had the best English and shifted-set scores in the comparison.
+- [ ] **Pitch:** make the deck as a PDF, rehearse the drift demo (test set → shifted set → DRIFT → review → retrain), and record a backup video.
+- [ ] **Before the demo:** reset to a clean v1 (section 12) so the charts, alerts and review queue start empty.
+
+## 19. Final pull: impact statement and README reorder (about 11:30)
+
+- `git fetch` showed 2 new commits from the teammate (ThisukaMW):
+  - `13b09ad` "Add impact statement with sourced figures": `IMPACT.md`, with CBSL-sourced groups, 727,092 government pensioners, 1,251,522 Aswesuma families and 13.9 million internet users
+  - `679aa91` "Reorder README and fill its gaps": the problem statement is now at the top, the old `scripts/` sections are moved down, and **all README TODOs are filled**
+- Local uncommitted work (`run.sh`, `docker-compose.yml`, README run instructions, this log) was set aside with `git stash`. Then `git pull --ff-only` to `679aa91`, then `git stash pop`.
+- **One conflict, README.md:** the teammate deleted the old top section ("Data workflow", the old "Streamlit app" text), and the local side had edited text inside it. Resolved to the teammate's version. The local `./run.sh` and `API_PORT` Docker instructions in "How to run" merged cleanly.
+- **Fixed in the new README:**
+  - the "Streamlit dashboard" section still had the commands that failed on this Mac (plain `python -m pip`, an unclear working directory); it now points to `./run.sh`, with manual steps inside the 3.12+ `.venv`
+  - added the missing `GET /predictions` endpoint to the API list
+- Tests: 13 OK. `run.sh` syntax OK.
+- **Still uncommitted:** README, `run.sh`, `docker-compose.yml`, `workflow.md`.

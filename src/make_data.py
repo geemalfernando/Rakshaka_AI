@@ -3,7 +3,8 @@
 All names, numbers and links are FAKE placeholders. No real personal data.
 Outputs: data/train.csv, data/test.csv (held-out), data/shifted.csv (new tactics for drift demo).
 Columns: text, label (scam | legitimate), language, group_id.
-Extend: add LLM-generated or hand-written rows to data/extra_*.csv (columns: text,label[,language]).
+Extend: add hand-written or LLM rows to data/extra_train.csv (columns: text,label[,language]).
+data/extra_test.csv is NOT merged here: it is an independent final test set, scored separately by evaluate.py.
 """
 import csv, pathlib, random, sys
 from collections import defaultdict
@@ -172,10 +173,9 @@ if __name__ == "__main__":
     allrows = gen(SCAM, "scam", "scam", 70) + gen(HAM, "legitimate", "legit", 70)
     train, val, test = split_templates(allrows)
     shifted = gen(SHIFT_SCAM, "scam", "shift-scam", 30) + gen(SHIFT_HAM, "legitimate", "shift-legit", 30)
-    for name, rows in (("train", train), ("test", test)):
-        extra = OUT / f"extra_{name}.csv"   # hand-written / LLM rows go here
-        if extra.exists():
-            rows.extend(load_labelled_messages(extra))
+    extra = OUT / "extra_train.csv"   # hand-written / LLM training rows
+    if extra.exists():
+        train.extend(load_labelled_messages(extra))
     for rows in (train, val, test, shifted): random.shuffle(rows)
     for name, rows in (("train", train), ("val", val), ("test", test), ("shifted", shifted)):
         write(OUT / f"{name}.csv", rows)

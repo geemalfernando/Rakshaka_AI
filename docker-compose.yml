@@ -3,7 +3,7 @@ services:
     build: .
     image: rakshaka-ai
     command: uvicorn api:app --host 0.0.0.0 --port 8000
-    ports: ["8000:8000"]
+    ports: ["${API_PORT:-8000}:8000"]   # host port: API_PORT=8001 docker compose up
     # named volume: seeded from the image's generated data; holds reviewed.csv for /retrain
     volumes: ["rakshaka-data:/app/data", "./logs:/app/logs"]
   dashboard:
@@ -11,7 +11,7 @@ services:
     working_dir: /app
     command: streamlit run app/dashboard.py --server.port 8501 --server.address 0.0.0.0
     environment: ["API_URL=http://api:8000"]
-    ports: ["8501:8501"]
+    ports: ["${UI_PORT:-8501}:8501"]
     volumes: ["rakshaka-data:/app/data"]
     depends_on: [api]
 

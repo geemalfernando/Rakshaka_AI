@@ -1,4 +1,4 @@
-"""Evaluate on held-out test set and on shifted set. Writes reports/metrics.json."""
+"""Evaluate on the held-out test set, the shifted set and the independent set. Writes reports/metrics.json."""
 import json, pathlib, sys
 import joblib, numpy as np
 from sklearn.metrics import classification_report, f1_score
@@ -9,13 +9,20 @@ from rakshaka.data import load_labelled_messages
 from rakshaka.modeling import char_ngram_oov_ratio, evaluate_by_language, evaluate_classifier, preprocess_text
 from features import unk_rate
 
-artifact = joblib.load(ROOT / "models" / "model.joblib")
+# optional argument: a model folder other than models/ (e.g. a clean model trained with --no-reviewed)
+MODEL_DIR = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "models"
+artifact = joblib.load(MODEL_DIR / "model.joblib")
 model = artifact["classifier"]
-vocab = set(json.loads((ROOT / "models" / "vocab.json").read_text(encoding="utf-8")))
-meta = json.loads((ROOT / "models" / "meta.json").read_text(encoding="utf-8"))
+vocab = set(json.loads((MODEL_DIR / "vocab.json").read_text(encoding="utf-8")))
+meta = json.loads((MODEL_DIR / "meta.json").read_text(encoding="utf-8"))
 out = {"model_version": artifact["model_version"], "baseline": meta}
-for name in ["test", "shifted"]:
-    rows = load_labelled_messages(ROOT / "data" / f"{name}.csv")
+# "independent" = data/extra_test.csv: written separately from the templates, never trained on or used for
+# retraining decisions, so it stays an untouched final check.
+SETS = {"test": ROOT / "data" / "test.csv", "shifted": ROOT / "data" / "shifted.csv"}
+if (ROOT / "data" / "extra_test.csv").exists():
+    SETS["independent"] = ROOT / "data" / "extra_test.csv"
+for name, path in SETS.items():
+    rows = load_labelled_messages(path)
     texts = [preprocess_text(r["text"]) for r in rows]
     actual = [r["label"] for r in rows]
     pred = model.predict(texts)
