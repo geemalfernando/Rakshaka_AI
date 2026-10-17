@@ -149,7 +149,8 @@ API endpoints: `GET /health`, `POST /predict` (`{"text": "...", "language": "sin
 | Source | Licence / method | Used for |
 |---|---|---|
 | `src/make_data.py` templates | Synthetic, hand-written by the team with AI assistance (Claude). All names, numbers and links are fake placeholders (`DemoBank`, `07X-XXXXXXX`, `*.example`) | train / val / test / shifted |
-| `data/extra_train.csv`, `data/extra_test.csv` (optional) | <!-- TODO: LLM-generated (model + prompt in data/PROMPTS.md) --> | train / test |
+| `data/extra_train.csv` | Synthetic, 188 hand-curated messages written with Claude Code (Claude Opus 5.5) and reviewed by the team: Sinhala, Tamil, Singlish and Tanglish, about 23-24 scam and 23-24 legitimate per language. Fake placeholders only (`DemoBank`, `TestPay`, `07X-XXXXXXX`, `*.example`). The wording avoids the held-out test/val templates and their translations, and the shifted-set tactics | train |
+| `data/extra_test.csv` (optional) | <!-- TODO: LLM-generated (model + prompt in data/PROMPTS.md) --> | test |
 | `data/reviewed.csv` (runtime) | Labels entered by human reviewers in the dashboard | retraining |
 | UCI SMS Spam Collection, Mendeley SMS Phishing Dataset (optional, not redistributed) | <!-- TODO: confirm licence --> | `scripts/` pipeline only |
 
