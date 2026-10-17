@@ -328,6 +328,41 @@ def load_verified_translations(path, messages):
     return translations
 
 
+def normalize_label(label):
+    """Map scaffold-style 0/1 labels and source labels onto legitimate/scam."""
+    normalized = str(label if label is not None else "").strip().casefold()
+    if normalized in {"1", "1.0", "true", "scam"}:
+        return "scam"
+    if normalized in {"0", "0.0", "false", "legit", "legitimate"}:
+        return "legitimate"
+    return label_category(normalized)
+
+
+def load_labelled_messages(path, default_language="unknown"):
+    """Read a text,label[,language][,group_id] CSV into training/evaluation rows."""
+    rows = []
+    with Path(path).open("r", encoding="utf-8-sig", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        missing = {"text", "label"} - set(reader.fieldnames or ())
+        if missing:
+            raise ValueError(
+                "{} is missing columns: {}".format(path, ", ".join(sorted(missing)))
+            )
+        for row in reader:
+            text = clean_text(row.get("text"))
+            if not text:
+                continue
+            rows.append(
+                {
+                    "text": text,
+                    "label": normalize_label(row.get("label")),
+                    "language": (row.get("language") or "").strip() or default_language,
+                    "group_id": (row.get("group_id") or "").strip() or group_id_for(text),
+                }
+            )
+    return rows
+
+
 def build_training_rows(messages, translations):
     rows = [
         {

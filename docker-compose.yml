@@ -1,0 +1,19 @@
+services:
+  api:
+    build: .
+    image: rakshaka-ai
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    # named volume: seeded from the image's generated data; holds reviewed.csv for /retrain
+    volumes: ["rakshaka-data:/app/data", "./logs:/app/logs"]
+  dashboard:
+    image: rakshaka-ai
+    working_dir: /app
+    command: streamlit run app/dashboard.py --server.port 8501 --server.address 0.0.0.0
+    environment: ["API_URL=http://api:8000"]
+    ports: ["8501:8501"]
+    volumes: ["rakshaka-data:/app/data"]
+    depends_on: [api]
+
+volumes:
+  rakshaka-data:

@@ -1,0 +1,462 @@
+{
+  "model_version": "v1",
+  "baseline": {
+    "version": "v1",
+    "trained_at": "2026-10-17T04:14:58+00:00",
+    "n_train": 1177,
+    "n_reviewed": 0,
+    "n_val": 276,
+    "mean_conf": 0.7913288551902918,
+    "scam_rate": 0.5598980458793543,
+    "unk_rate": 0.23498581260931142,
+    "oov_rate": 0.2933491647110341
+  },
+  "test": {
+    "rows": 264,
+    "groups": 12,
+    "balanced_accuracy": 0.8986486486486487,
+    "macro_f1": 0.9246216807842391,
+    "confusion_matrix_labels": [
+      "legitimate",
+      "scam"
+    ],
+    "confusion_matrix": [
+      [
+        59,
+        15
+      ],
+      [
+        0,
+        190
+      ]
+    ],
+    "per_class": {
+      "legitimate": {
+        "precision": 1.0,
+        "recall": 0.7972972972972973,
+        "f1-score": 0.8872180451127819,
+        "support": 74.0
+      },
+      "scam": {
+        "precision": 0.926829268292683,
+        "recall": 1.0,
+        "f1-score": 0.9620253164556962,
+        "support": 190.0
+      },
+      "accuracy": 0.9431818181818182,
+      "macro avg": {
+        "precision": 0.9634146341463414,
+        "recall": 0.8986486486486487,
+        "f1-score": 0.9246216807842391,
+        "support": 264.0
+      },
+      "weighted avg": {
+        "precision": 0.9473392461197339,
+        "recall": 0.9431818181818182,
+        "f1-score": 0.9410566116095763,
+        "support": 264.0
+      }
+    },
+    "f1_scam": 0.962,
+    "mean_conf": 0.8227,
+    "unk_rate": 0.1852,
+    "oov_rate": 0.2787,
+    "by_language": {
+      "english": {
+        "rows": 127,
+        "groups": 6,
+        "balanced_accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            41,
+            0
+          ],
+          [
+            0,
+            86
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 41.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 86.0
+          },
+          "accuracy": 1.0,
+          "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 127.0
+          },
+          "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 127.0
+          }
+        },
+        "evaluable": true
+      },
+      "singlish": {
+        "rows": 39,
+        "groups": 2,
+        "balanced_accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            6,
+            0
+          ],
+          [
+            0,
+            33
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 6.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 33.0
+          },
+          "accuracy": 1.0,
+          "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 39.0
+          },
+          "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 39.0
+          }
+        },
+        "evaluable": true
+      },
+      "sinhala": {
+        "rows": 58,
+        "groups": 2,
+        "balanced_accuracy": 0.5,
+        "macro_f1": 0.42574257425742573,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            15
+          ],
+          [
+            0,
+            43
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 15.0
+          },
+          "scam": {
+            "precision": 0.7413793103448276,
+            "recall": 1.0,
+            "f1-score": 0.8514851485148515,
+            "support": 43.0
+          },
+          "accuracy": 0.7413793103448276,
+          "macro avg": {
+            "precision": 0.3706896551724138,
+            "recall": 0.5,
+            "f1-score": 0.42574257425742573,
+            "support": 58.0
+          },
+          "weighted avg": {
+            "precision": 0.5496432818073722,
+            "recall": 0.7413793103448276,
+            "f1-score": 0.6312734721748037,
+            "support": 58.0
+          }
+        },
+        "evaluable": true
+      },
+      "tamil": {
+        "rows": 40,
+        "groups": 2,
+        "balanced_accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            12,
+            0
+          ],
+          [
+            0,
+            28
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 12.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 28.0
+          },
+          "accuracy": 1.0,
+          "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 40.0
+          },
+          "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 40.0
+          }
+        },
+        "evaluable": true
+      }
+    }
+  },
+  "shifted": {
+    "rows": 152,
+    "groups": 15,
+    "balanced_accuracy": 0.95,
+    "macro_f1": 0.9699248120300752,
+    "confusion_matrix_labels": [
+      "legitimate",
+      "scam"
+    ],
+    "confusion_matrix": [
+      [
+        18,
+        2
+      ],
+      [
+        0,
+        132
+      ]
+    ],
+    "per_class": {
+      "legitimate": {
+        "precision": 1.0,
+        "recall": 0.9,
+        "f1-score": 0.9473684210526315,
+        "support": 20.0
+      },
+      "scam": {
+        "precision": 0.9850746268656716,
+        "recall": 1.0,
+        "f1-score": 0.9924812030075187,
+        "support": 132.0
+      },
+      "accuracy": 0.9868421052631579,
+      "macro avg": {
+        "precision": 0.9925373134328358,
+        "recall": 0.95,
+        "f1-score": 0.9699248120300752,
+        "support": 152.0
+      },
+      "weighted avg": {
+        "precision": 0.9870384917517675,
+        "recall": 0.9868421052631579,
+        "f1-score": 0.9865453106450337,
+        "support": 152.0
+      }
+    },
+    "f1_scam": 0.9925,
+    "mean_conf": 0.8277,
+    "unk_rate": 0.5036,
+    "oov_rate": 0.4067,
+    "by_language": {
+      "english": {
+        "rows": 97,
+        "groups": 8,
+        "balanced_accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            15,
+            0
+          ],
+          [
+            0,
+            82
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 15.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 82.0
+          },
+          "accuracy": 1.0,
+          "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 97.0
+          },
+          "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 97.0
+          }
+        },
+        "evaluable": true
+      },
+      "singlish": {
+        "rows": 29,
+        "groups": 4,
+        "balanced_accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            26
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 3.0
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 26.0
+          },
+          "accuracy": 1.0,
+          "macro avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 29.0
+          },
+          "weighted avg": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 29.0
+          }
+        },
+        "evaluable": true
+      },
+      "sinhala": {
+        "rows": 14,
+        "groups": 2,
+        "balanced_accuracy": 0.5,
+        "macro_f1": 0.46153846153846156,
+        "confusion_matrix_labels": [
+          "legitimate",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            0,
+            2
+          ],
+          [
+            0,
+            12
+          ]
+        ],
+        "per_class": {
+          "legitimate": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 2.0
+          },
+          "scam": {
+            "precision": 0.8571428571428571,
+            "recall": 1.0,
+            "f1-score": 0.9230769230769231,
+            "support": 12.0
+          },
+          "accuracy": 0.8571428571428571,
+          "macro avg": {
+            "precision": 0.42857142857142855,
+            "recall": 0.5,
+            "f1-score": 0.46153846153846156,
+            "support": 14.0
+          },
+          "weighted avg": {
+            "precision": 0.7346938775510203,
+            "recall": 0.8571428571428571,
+            "f1-score": 0.7912087912087912,
+            "support": 14.0
+          }
+        },
+        "evaluable": true
+      },
+      "tamil": {
+        "evaluable": false,
+        "rows": 12,
+        "groups": 1,
+        "reason": "requires both legitimate and scam examples"
+      }
+    }
+  }
+}

@@ -2,8 +2,16 @@
 .venv
 __pycache__
 *.pyc
+.env
 artifacts
-data
+data/processed
+data/annotation
+data/drift
+data/*.csv
+!data/extra_*.csv
+models/*.joblib
+models/*.json
+logs
 spam.csv
 SMS PHISHING DATASET FOR MACHINE LEARNING AND PATTERN RECOGNITION
 *.pdf
