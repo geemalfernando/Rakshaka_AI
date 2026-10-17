@@ -19,6 +19,7 @@ __pycache__/
 /spam.csv
 /SMS PHISHING DATASET FOR MACHINE LEARNING AND PATTERN RECOGNITION/
 *.pdf
+!/reports/model_report.pdf
 
 # local demo-reset backups
 /backups/
