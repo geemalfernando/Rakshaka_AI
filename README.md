@@ -170,17 +170,18 @@ stratified by (label, language) with seed 42.
 ## Evaluation (model v1, from `reports/metrics.json`)
 | Set | Rows | Balanced acc. | Macro F1 | F1 (scam) | Mean confidence | Unknown-token rate |
 |---|---|---|---|---|---|---|
-| validation baseline | 276 | | | | 0.791 | 23.5% |
-| **test** (unseen templates) | 264 | 0.899 | 0.925 | 0.962 | 0.823 | 18.5% |
-| shifted (new tactics) | 152 | 0.950 | 0.970 | 0.993 | 0.828 | **50.4%** |
+| validation baseline | 276 | | | | 0.828 | 18.7% |
+| **test** (unseen templates) | 264 | 0.926 | 0.946 | 0.972 | 0.823 | 12.3% |
+| shifted (new tactics) | 152 | 1.000 | 1.000 | 1.000 | 0.799 | **38.1%** |
 
-Test confusion matrix (rows = actual legitimate/scam, columns = predicted): `[[59, 15], [0, 190]]`.
-No scam was missed. 15 legitimate messages were flagged as scam.
+Test confusion matrix (rows = actual legitimate/scam, columns = predicted): `[[63, 11], [0, 190]]`.
+No scam was missed. 11 legitimate messages were flagged as scam.
 
-Per language on test (balanced accuracy): English 1.00, Singlish 1.00, Tamil 1.00, **Sinhala 0.50**. The
-held-out Sinhala legitimate templates are all classified as scam. Sinhala legitimate data is the weakest
-area and the first target for more data (`data/PROMPTS.md`). These scores come from a small synthetic
-template set and are not a claim about real-world traffic.
+Per language on test (balanced accuracy): English 1.00, Singlish 1.00, Tamil 1.00, **Sinhala 0.63**.
+Adding `data/extra_train.csv` raised Sinhala from 0.50 and test macro F1 from 0.925. Some held-out Sinhala
+legitimate messages are still flagged as scam, so Sinhala legitimate data remains the first target for more
+data (`data/PROMPTS.md`). These scores come from a small synthetic template set and are not a claim about
+real-world traffic.
 
 ## Monitoring and drift response
 - **Prediction logging:** every prediction goes to `logs/predictions.db` with a timestamp, text hash, language,
@@ -190,7 +191,9 @@ template set and are not a claim about real-world traffic.
 - **Drift signal:** a rolling window of the last 50 predictions (judged after 20) is compared with baselines
   measured on the validation templates:
   - mean confidence drops by more than 0.10, or
-  - the unknown-token rate (share of words never seen in training) rises more than 15 points.
+  - the unknown-token rate (share of words never seen in training) rises more than 12 points. In 1,000 random
+    50-message batches, normal test traffic never rose more than -1 point, and shifted traffic always rose at
+    least +13.5 points.
 - **Response:** a `DRIFT` alert is logged once per episode (`/alerts`, dashboard banner). Verdicts switch to
   "UNCERTAIN - be careful, sent for review", a safe fallback that never says "safe". Messages go to the
   **human review queue**, where a reviewer labels them (`POST /review` → `data/reviewed.csv`) and triggers
@@ -201,19 +204,19 @@ template set and are not a claim about real-world traffic.
 
 | Step | Status | Mean conf. | Unknown-token rate | Sent to review |
 |---|---|---|---|---|
-| 50 test messages | OK | 0.817 | 16.5% | 3 |
-| 50 shifted messages | **DRIFT** ("unknown-token rate 23% -> 50%") | 0.828 | 50.3% | 25 |
-| review 28 queued messages → `/retrain` → v2 | | | | |
-| 50 shifted messages | OK | 0.825 | 11.8% | 0 |
-| 50 test messages | OK | 0.834 | 18.3% | 2 |
+| 50 test messages | OK | 0.823 | 15.8% | 2 |
+| 50 shifted messages | **DRIFT** ("unknown-token rate 19% -> 39%") | 0.798 | 38.9% | 27 |
+| review 29 queued messages → `/retrain` → v2 | | | | |
+| 50 shifted messages | OK | 0.812 | 1.5% | 1 |
+| 50 test messages | OK | 0.835 | 10.6% | 3 |
 
-The drift signal fires on input shift **while accuracy is still high** (shifted F1 0.99). That is the point:
+The drift signal fires on input shift **while accuracy is still high** (shifted F1 1.00). That is the point:
 the product notices new scam tactics before it quietly starts failing. The post-retrain shifted batch shares
 templates with the reviewed messages, so it shows that the loop works, not unseen-tactic accuracy.
 
 `python scripts/demo_drift.py --model models/model.joblib --baseline data/test.csv --shifted data/shifted.csv`
-gives an offline char-ngram OOV comparison on the same model: mean unseen char-ngram ratio 0.28 on test vs
-0.41 on shifted. Its fixed per-message threshold of 0.25 also flags 124 of 200 normal test messages, so the
+gives an offline char-ngram OOV comparison on the same model: mean unseen char-ngram ratio 0.20 on test vs
+0.33 on shifted. Its fixed per-message threshold of 0.25 also flags 39 of 200 normal test messages, so the
 API's main drift signal is the calibrated window comparison above. The char-ngram ratio is logged as a
 secondary signal.
 

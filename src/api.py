@@ -18,7 +18,7 @@ DB = LOGS / "predictions.db"
 WINDOW = 50              # rolling window of recent predictions
 MIN_WINDOW = 20          # predictions needed before drift is judged
 CONF_DROP = 0.10         # alert if mean conf drops > 0.10 below baseline
-UNK_RISE = 0.15          # alert if unseen-token rate rises >15 points above baseline
+UNK_RISE = 0.12          # alert if unseen-token rate rises >12 points above baseline (normal traffic stays >=11 below)
 LOW_CONF = 0.60          # below this a prediction goes to human review (~3% of normal traffic)
 MSG_UNK = 0.50           # a message that is mostly unseen words goes to human review
 
