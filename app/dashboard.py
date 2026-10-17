@@ -77,7 +77,15 @@ with tab2:
                    f"unknown-token rate {base['unk_rate']:.0%} (model {base['version']}).")
 
     st.subheader("Checks over time")
-    preds = pd.DataFrame(requests.get(f"{API}/predictions", params={"limit": 500}).json())
+    monitor_token = st.text_input("Admin token for prediction history and alerts", type="password", key="monitor_token")
+    if monitor_token:
+        history_response = requests.get(f"{API}/predictions", params={"limit": 500}, headers={"X-Admin-Token": monitor_token}, timeout=10)
+        preds = pd.DataFrame(history_response.json()) if history_response.ok else pd.DataFrame()
+        if not history_response.ok:
+            st.warning("Prediction history is unavailable: verify the admin token.")
+    else:
+        preds = pd.DataFrame()
+        st.info("Enter an admin token to view prediction history.")
     if preds.empty:
         st.info("No checks yet. Check a message or simulate traffic below.")
     else:
@@ -114,20 +122,58 @@ with tab2:
                 requests.post(f"{API}/predict", json={"text": t, "language": lang})
             st.rerun()
     st.subheader("Recent alerts")
-    st.dataframe(pd.DataFrame(requests.get(f"{API}/alerts").json()))
+    if monitor_token:
+        alert_response = requests.get(f"{API}/alerts", headers={"X-Admin-Token": monitor_token}, timeout=10)
+        if alert_response.ok:
+            st.dataframe(pd.DataFrame(alert_response.json()))
+        else:
+            st.warning("Alert history requires a valid admin token.")
 
 with tab3:
-    q = pd.DataFrame(requests.get(f"{API}/review_queue").json())
-    st.write(f"{len(q)} messages waiting for review")
-    if len(q):
-        q["is_scam"] = q["label"] == "scam"
-        edited = st.data_editor(q[["rowid", "text", "language", "confidence", "is_scam"]],
-                                disabled=["rowid", "text", "language", "confidence"], width="stretch")
-        if st.button("Save labels + retrain"):
-            items = [{"rowid": int(r.rowid), "is_scam": bool(r.is_scam)} for r in edited.itertuples()]
-            saved = requests.post(f"{API}/review", json={"items": items}).json()["saved"]
-            r = requests.post(f"{API}/retrain").json()
-            if r["ok"]:
-                st.success(f"Saved {saved} labels. Retrained -> {r['model_version']}")
-            else:
-                st.error("Retraining failed: " + r["log"])
+    st.info("Reviewer access requires the API admin token. The token is never written to a file.")
+    reviewer_token = st.text_input("Admin token", type="password", key="reviewer_token")
+    if not reviewer_token:
+        st.warning("Enter an admin token to view and manage the review queue.")
+    else:
+        headers = {"X-Admin-Token": reviewer_token}
+        try:
+            queue_response = requests.get(f"{API}/review_queue", headers=headers, timeout=10)
+            queue_response.raise_for_status()
+        except requests.RequestException as exc:
+            st.error("Could not access the review queue. Check the admin token and API settings.")
+        else:
+            q = pd.DataFrame(queue_response.json())
+            st.write(f"{len(q)} messages waiting for review")
+            if len(q):
+                q["is_scam"] = q["label"] == "scam"
+                edited = st.data_editor(
+                    q[["rowid", "text", "language", "confidence", "is_scam"]],
+                    disabled=["rowid", "text", "language", "confidence"],
+                    width="stretch",
+                )
+                if st.button("Save labels + retrain"):
+                    items = [
+                        {"rowid": int(r.rowid), "is_scam": bool(r.is_scam)}
+                        for r in edited.itertuples()
+                    ]
+                    try:
+                        review_response = requests.post(
+                            f"{API}/review", json={"items": items}, headers=headers, timeout=30
+                        )
+                        review_response.raise_for_status()
+                        saved = review_response.json()["saved"]
+                        retrain_response = requests.post(
+                            f"{API}/retrain", headers=headers, timeout=180
+                        )
+                        retrain_response.raise_for_status()
+                        result = retrain_response.json()
+                    except requests.RequestException:
+                        st.error("Review/retraining request failed. Check API logs and retry safely.")
+                    else:
+                        if result.get("ok") and result.get("deployed"):
+                            st.success(f"Saved {saved} labels. Deployed {result['model_version']}.")
+                        elif result.get("ok"):
+                            st.warning(f"Saved {saved} labels, but the candidate was not deployed. Review the acceptance gate.")
+                            st.json(result.get("gate", {}))
+                        else:
+                            st.error("Retraining failed: " + result.get("log", "unknown error"))
